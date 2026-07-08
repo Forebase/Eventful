@@ -1,0 +1,94 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eventful"
+version = "0.1.0"
+description = "A universal event-bus / pub-sub system for micro-service communication"
+authors = [
+    {name = "Eventful Team", email = "team@eventful.org"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.13"
+keywords = ["events", "pubsub", "message-bus", "microservices"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+redis = ["redis>=5.0"]
+postgres = ["asyncpg>=0.29"]
+file = ["orjson>=3.9"]
+fastapi = ["fastapi>=0.110", "anyio>=4.0"]
+starlette = ["starlette>=0.37"]
+ratelimit = ["anyio>=4.0"]
+anyio = ["anyio>=4.0"]
+pydantic = ["pydantic>=2.5"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "hypothesis>=6.0",
+    "black>=23.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/eventful/eventful"
+Documentation = "https://eventful.readthedocs.io"
+Repository = "https://github.com/eventful/eventful"
+Issues = "https://github.com/eventful/eventful/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["eventful*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+select = [
+    "E", "W", "F",  # pycodestyle
+    "I",            # isort
+    "B",            # flake8-bugbear
+    "C",            # flake8-comprehensions
+]
+ignore = ["B905", "B904"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--strict-config --strict-markers --tb=short -ra"
+filterwarnings = ["error"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
