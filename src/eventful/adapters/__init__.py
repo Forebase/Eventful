@@ -1,12 +1,8 @@
-"""
-Framework adapters for eventful.
-"""
+"""Framework adapter namespace.
 
-from .fastapi import get_event_bus, add_eventful_middleware
-from .starlette import request_event_bus, add_eventful_middleware
-
-__all__ = [
-    "get_event_bus",
-    "add_eventful_middleware",
-    "request_event_bus"
-]
+Adapters are optional and must be imported component-by-component.
+"""
+from __future__ import annotations
+from eventful.api_status import ApiStatus
+API_STATUS = ApiStatus.EXPERIMENTAL
+__all__ = ["API_STATUS"]

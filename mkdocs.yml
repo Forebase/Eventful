@@ -1,0 +1,7 @@
+site_name: Eventful
+nav:
+  - Home: index.md
+  - API: api.md
+  - Quickstart: quickstart.md
+  - Work Register: work-register.md
+  - Annotation Policy: annotation-policy.md

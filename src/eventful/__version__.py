@@ -1,1 +1,2 @@
-version = "0.0.1"
+"""Single version source for Eventful."""
+__version__ = "0.2.0"

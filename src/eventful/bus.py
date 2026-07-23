@@ -152,7 +152,7 @@ class EventBus:
         listeners = self.router.get_listeners(event_obj)
 
         if not listeners:
-            return [] if async_ is False else asyncio.sleep(0, result=[])
+            return []
 
         # Check if we need async mode
         has_async = any(inspect.iscoroutinefunction(l.func) for l in listeners)
@@ -245,7 +245,7 @@ class InMemoryBus(EventBus):
         if self._processing:
             # If we're already processing, queue the event
             self._event_queue.append((event_obj, async_))
-            return [] if async_ is False else asyncio.sleep(0, result=[])
+            return []
 
         self._processing = True
         try:

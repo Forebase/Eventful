@@ -6,7 +6,6 @@ import pytest
 import asyncio
 from eventful.bus import EventBus, InMemoryBus
 from eventful.event import Event
-from eventful.listener import listener
 
 
 class TestEventBus:
@@ -24,14 +23,14 @@ class TestEventBus:
         bus = EventBus()
         calls = []
 
-        @listener("test.event", priority=1)
         def high_priority(event):
             calls.append("high")
 
-        @listener("test.event", priority=0)
         def low_priority(event):
             calls.append("low")
 
+        bus.register("test.event", low_priority, priority=0)
+        bus.register("test.event", high_priority, priority=1)
         bus.emit(Event(type="test.event"))
         assert calls == ["high", "low"]
 

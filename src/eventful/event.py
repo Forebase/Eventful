@@ -32,6 +32,9 @@ class Event:
 
     _propagation_stopped: bool = field(default=False, init=False, repr=False)
 
+    def __post_init__(self) -> None:
+        self.tags = set(self.tags)
+
     def stop_propagation(self) -> None:
         """Stop further propagation of this event to remaining listeners."""
         self._propagation_stopped = True

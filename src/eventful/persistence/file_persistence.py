@@ -16,7 +16,7 @@ try:
 except ImportError:
     orjson = None
 
-from src.eventful.event import Event
+from eventful.event import Event
 
 
 class FilePersistence:

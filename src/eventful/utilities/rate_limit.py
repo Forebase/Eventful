@@ -5,7 +5,7 @@ Rate limiting utilities for event listeners.
 from __future__ import annotations
 
 import time
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 from threading import Lock
 
 

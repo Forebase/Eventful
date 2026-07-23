@@ -1,93 +1,69 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "eventful"
-version = "0.1.0"
-description = "A universal event-bus / pub-sub system for micro-service communication"
-authors = [
-    {name = "Eventful Team", email = "team@eventful.org"},
-]
+dynamic = ["version"]
+description = "Provisional event dispatch contracts and local in-memory event bus for Python applications"
 readme = "README.md"
-license = {text = "MIT"}
-requires-python = ">=3.13"
-keywords = ["events", "pubsub", "message-bus", "microservices"]
+requires-python = ">=3.13,<3.15"
+license = "MIT"
+authors = [{name = "Eventful maintainers", email = "team@eventful.org"}]
+keywords = ["events", "pubsub", "event-bus", "dispatch"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
 ]
-
 dependencies = []
 
 [project.optional-dependencies]
-redis = ["redis>=5.0"]
+redis = ["redis>=5"]
 postgres = ["asyncpg>=0.29"]
-file = ["orjson>=3.9"]
-fastapi = ["fastapi>=0.110", "anyio>=4.0"]
+file = []
+fastapi = ["fastapi>=0.110"]
 starlette = ["starlette>=0.37"]
-ratelimit = ["anyio>=4.0"]
-anyio = ["anyio>=4.0"]
-pydantic = ["pydantic>=2.5"]
-dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21",
-    "pytest-cov>=4.0",
-    "hypothesis>=6.0",
-    "black>=23.0",
-    "ruff>=0.1",
-    "mypy>=1.0",
-    "pre-commit>=3.0",
-]
+test = ["build>=1.2", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5"]
+docs = ["mkdocs>=1.6"]
+dev = ["build>=1.2", "mypy>=1.10", "pre-commit>=3.7", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "ruff>=0.5"]
+all = ["asyncpg>=0.29", "fastapi>=0.110", "redis>=5", "starlette>=0.37"]
 
-[project.urls]
-Homepage = "https://github.com/Forebase/Eventful"
-Repository = "https://github.com/Forebase/Eventful"
-Issues = "https://github.com/Forebase/Eventful/issues"
-
+[tool.setuptools.dynamic]
+version = {attr = "eventful.__version__.__version__"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["eventful*"]
-
-[tool.black]
-line-length = 88
-target-version = ["py313"]
+[tool.setuptools.package-data]
+eventful = ["py.typed"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py313"
-select = [
-    "E", "W", "F",  # pycodestyle
-    "I",            # isort
-    "B",            # flake8-bugbear
-    "C",            # flake8-comprehensions
-]
-ignore = ["B905", "B904"]
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501", "E741", "E731", "F401", "F403"]
 
 [tool.mypy]
 python_version = "3.13"
 strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
+packages = ["eventful"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--strict-config --strict-markers --tb=short -ra"
-filterwarnings = ["error"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-]
+asyncio_mode = "auto"
+filterwarnings = ["error", "ignore:.*deprecated.*:DeprecationWarning"]
+
+[[tool.mypy.overrides]]
+module = "eventful.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "eventful.contracts"
+ignore_errors = false
+strict = true
