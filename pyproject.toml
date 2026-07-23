@@ -44,13 +44,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/eventful/eventful"
-Documentation = "https://eventful.readthedocs.io"
-Repository = "https://github.com/eventful/eventful"
-Issues = "https://github.com/eventful/eventful/issues"
+Homepage = "https://github.com/Forebase/Eventful"
+Repository = "https://github.com/Forebase/Eventful"
+Issues = "https://github.com/Forebase/Eventful/issues"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["eventful*"]
 
 [tool.black]
