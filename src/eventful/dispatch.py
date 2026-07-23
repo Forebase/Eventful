@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import List
 
-from listener import Listener
+from .listener import Listener
 
 
 class Dispatcher:
