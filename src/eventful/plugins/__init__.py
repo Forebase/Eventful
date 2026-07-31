@@ -1,15 +1,9 @@
-"""
-Plugin system for eventful.
-"""
+"""Experimental plugin namespace.
 
-from .plugin import Plugin, TransportPlugin, PersistencePlugin
-from .registry import PluginRegistry, get_plugin_registry, register_plugin
-
-__all__ = [
-    "Plugin",
-    "TransportPlugin",
-    "PersistencePlugin",
-    "PluginRegistry",
-    "get_plugin_registry",
-    "register_plugin",
-]
+Plugins implement :class:`eventful.contracts.Plugin`; discovery and lifecycle
+management are deferred to later 0.x releases.
+"""
+from __future__ import annotations
+from eventful.api_status import ApiStatus
+API_STATUS = ApiStatus.EXPERIMENTAL
+__all__ = ["API_STATUS"]

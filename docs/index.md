@@ -1,74 +1,69 @@
-# Eventful Documentation
+# Eventful documentation
 
-Welcome to Eventful, a high-performance event bus system for Python.
+## Vision and scope
 
-### Contents
+Eventful aims to become a small library, framework integration layer, and development kit for event-driven Python applications. Version 0.2 is a foundation release: it keeps the useful alpha in-memory dispatcher while establishing the package map and contracts expected for v1.
 
-- [Quick Start](#quick-start)
-- [Key Concepts](#key-concepts)
-  - [Events](#events)
-  - [Listeners](#listeners)
-  - [Event Bus](#event-bus)
-- [Next Steps](#next-steps)
+## Library, framework, development kit
 
-### Overview
+- **Library:** local dispatch primitives that work without optional dependencies.
+- **Framework adapters:** optional FastAPI/Starlette integration points.
+- **Development kit:** contracts and extension seams for transports, stores, codecs, plugins, schemas, configuration, and observability.
 
-Eventful provides a flexible and extensible event handling system that supports:
+## Semantics
 
-- **Sync and Async Listeners**: Handle events synchronously or asynchronously
-- **Multiple Transports**: In-memory, Redis, and custom transports
-- **Event Persistence**: File-based and database storage
-- **Framework Integration**: FastAPI, Starlette adapters
-- **Advanced Features**: Rate limiting, debouncing, logging integration
+- **Local dispatcher:** in-process listener routing; no durability or cross-process delivery.
+- **Broker transport:** future integration for Redis or other brokers; delivery depends on broker behavior.
+- **Durable stream:** future append/read store with replay positions and explicit reliability contracts.
 
----
+## Package map
 
-## Quick Start
+| Package | Status | Purpose |
+| --- | --- | --- |
+| `eventful` | provisional | 0.1-compatible facade and local bus |
+| `eventful.contracts` | provisional | minimal Protocol contracts |
+| `eventful.codecs` | experimental | encoding/decoding namespaces |
+| `eventful.stores` | experimental | event store namespace |
+| `eventful.transports` | experimental | broker/stream transport namespace |
+| `eventful.adapters` | experimental | web framework adapters |
+| `eventful.middleware` | experimental | middleware extension namespace |
+| `eventful.plugins` | experimental | plugin extension namespace |
+| `eventful.configuration` | experimental | configuration source namespace |
+| `eventful.schemas` | experimental | schema registry namespace |
+| `eventful.observability` | experimental | tracing/metrics/logging provider namespace |
 
-```python
-from eventful import Event, emit, listener
+## Public API policy
 
-@listener("user.created")
-def handle_user(event):
-    print(f"User: {event.payload}")
+Until 1.0, APIs are stable only when explicitly marked stable. Provisional APIs may change with deprecation warnings where practical. Experimental APIs may change or be removed in minor releases.
 
-emit(Event(type="user.created", payload="Alice"))
-````
----
+## Extension model
 
-## Key Concepts
+Extensions should implement the Protocols in `eventful.contracts` and raise component-specific errors when optional dependencies are missing.
 
+## Configuration philosophy
 
-### Events
+Minimal installs use dataclass configuration and environment variables. Richer configuration sources belong behind `ConfigurationSource` contracts.
 
-Events are the core building blocks. Each event has:
+## Terminology
 
-- type: Hierarchical identifier (e.g., "service.user.created")
-- payload: The event data
-- metadata: Additional contextual information
-- tags: String tags for filtering
+An **event** has a type, payload, metadata, and tags. **Delivery** means invoking matching local listeners in dispatch order. **Publication** means handing an event to a bus, broker, or stream.
 
-### Listeners
+## Reliability and security
 
-Listeners are functions that respond to events. They can be:
+Local dispatch is best-effort and process-local. Durable claims require explicit store contracts, acknowledgements, replay semantics, validation, and security review.
 
-- Sync: def listener(event)
-- Async: async def listener(event)
-- Prioritized: Higher numbers execute first
-- Filtered: By topic, tags, or custom logic
+## Roadmap
 
-### Event Bus
+- **0.2:** repair packaging, establish topology, document status.
+- **0.3-0.5:** fill codecs, middleware, configuration, and observability.
+- **0.6-0.8:** integrate broker/store implementations with tests.
+- **0.9:** API freeze candidates and migration tooling.
+- **1.0:** stable documented facade.
 
-The event bus manages event routing and delivery. Multiple bus implementations are available:
+## Non-goals
 
-- InMemoryBus: High-performance in-process bus
-- RedisBus: Distributed bus using Redis pub/sub
+Eventful 0.2 does not claim distributed delivery, durable persistence, Redis/PostgreSQL production readiness, or performance benchmarks.
 
----
+## Development workflow
 
-## Next Steps
-
-- Quick Start Guide [blocked]
-- API Reference [blocked]
-- Cookbook Examples [blocked]
-- Advanced Topics [blocked]
+Run `python -m pip install -e '.[dev]'`, then `ruff check .`, `mypy src/eventful`, `pytest`, and `python -m build`.

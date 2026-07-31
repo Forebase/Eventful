@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from typing import List, Set
 
-from src.eventful.event import Event
-from src.eventful.listener import Listener
+from eventful.event import Event
+from eventful.listener import Listener
 
 
 class Router:

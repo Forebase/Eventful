@@ -1,0 +1,22 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '${{ matrix.python-version }}'}
+      - run: python -m pip install -e '.[dev]'
+      - run: ruff check .
+      - run: mypy src/eventful
+      - run: pytest --cov=eventful
+      - run: python scripts/check_annotations.py
+      - run: python -m build
+      - run: python -m pip install --force-reinstall dist/*.whl
+      - run: python -c "import eventful; import eventful.contracts"
+      - run: python -c "import eventful.transports.redis; import eventful.persistence.postgres_persistence"
+      - run: mkdocs build --strict

@@ -8,7 +8,6 @@ import asyncio
 import time
 from typing import Callable, Optional, Any
 from threading import Lock, Timer
-from concurrent.futures import ThreadPoolExecutor
 
 def debounce(interval: float) -> Callable:
     """
@@ -39,7 +38,6 @@ def debounce(interval: float) -> Callable:
         last_call_time = 0.0
         timer = None
         lock = Lock()
-        executor = ThreadPoolExecutor(max_workers=1)
 
         def wrapper(event) -> None:
             nonlocal last_call_time, timer

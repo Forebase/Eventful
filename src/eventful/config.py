@@ -63,11 +63,11 @@ class EventfulConfig:
                 field_type = cls.__dataclass_fields__[field_name].type
 
                 # Basic type conversion
-                if field_type == bool:
+                if field_type is bool:
                     value = value.lower() in ('true', '1', 'yes')
-                elif field_type == int:
+                elif field_type is int:
                     value = int(value)
-                elif field_type == float:
+                elif field_type is float:
                     value = float(value)
 
                 setattr(config, field_name, value)
