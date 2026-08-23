@@ -181,6 +181,7 @@ def async_debounce(interval: float) -> Callable:
         task: Optional[asyncio.Task] = None
         pending: Optional[tuple[tuple[Any, ...], dict[str, Any]]] = None
         failure: Optional[BaseException] = None
+        foreground_tasks: set[asyncio.Task] = set()
         lock = asyncio.Lock()
 
         def task_finished(finished: asyncio.Task) -> None:
@@ -189,17 +190,24 @@ def async_debounce(interval: float) -> Callable:
             if finished.cancelled():
                 return
             exception = finished.exception()
-            if exception is not None:
+            if exception is not None and finished not in foreground_tasks:
                 failure = exception
 
-        async def stop_task() -> None:
+        async def stop_task(*, cancel_self: bool = False) -> None:
             nonlocal task
             current, task = task, None
-            if current is not None and not current.done():
+            if current is None:
+                return
+            if current is asyncio.current_task():
+                # A callback may invoke its own wrapper.  It must not await itself;
+                # the caller will install the replacement task after this returns.
+                if cancel_self:
+                    current.cancel()
+                return
+            if not current.done():
                 current.cancel()
-            if current is not None:
-                await asyncio.gather(current, return_exceptions=True)
-                await asyncio.sleep(0)
+            await asyncio.gather(current, return_exceptions=True)
+            await asyncio.sleep(0)
 
         def raise_failure() -> None:
             nonlocal failure
@@ -233,31 +241,34 @@ def async_debounce(interval: float) -> Callable:
             nonlocal pending
             async with lock:
                 pending = None
-                await stop_task()
+                await stop_task(cancel_self=True)
                 raise_failure()
 
         async def flush() -> Any:
-            nonlocal pending
+            nonlocal pending, task
             async with lock:
                 raise_failure()
                 call, pending = pending, None
                 if call is not None:
                     await stop_task()
-                    running = None
+                    args, kwargs = call
+                    loop = asyncio.get_running_loop()
+                    running = loop.create_task(func(*args, **kwargs))
+                    running.add_done_callback(task_finished)
+                    task = running
                 else:
                     running = task
-            if running is not None:
-                await asyncio.gather(running, return_exceptions=True)
-                # Let the registered observer record the exception before it is
-                # surfaced below (``gather`` may have received an already-done task).
-                await asyncio.sleep(0)
+                if running is not None:
+                    foreground_tasks.add(running)
+            if running is None:
+                return None
+            try:
+                return await running
+            finally:
+                foreground_tasks.discard(running)
                 async with lock:
-                    raise_failure()
-                return None
-            if call is None:
-                return None
-            args, kwargs = call
-            return await func(*args, **kwargs)
+                    if task is running:
+                        task = None
 
         wrapper.cancel = cancel
         wrapper.flush = flush

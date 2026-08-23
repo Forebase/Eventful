@@ -80,3 +80,41 @@ async def test_clean_shutdown_cancels_sleeping_task() -> None:
     await callback()
     await callback.cancel()
     assert not [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+
+
+async def test_callback_can_reentrantly_schedule_itself() -> None:
+    delivered = []
+
+    @async_debounce(0)
+    async def callback(value: int) -> None:
+        delivered.append(value)
+        if value == 1:
+            await callback(2)
+
+    await callback(1)
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    await callback.flush()
+    assert delivered == [1, 2]
+
+
+async def test_cancel_stops_callback_started_by_flush() -> None:
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+
+    @async_debounce(60)
+    async def callback() -> None:
+        started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            stopped.set()
+
+    await callback()
+    flushing = asyncio.create_task(callback.flush())
+    await started.wait()
+    await callback.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await flushing
+    assert stopped.is_set()
