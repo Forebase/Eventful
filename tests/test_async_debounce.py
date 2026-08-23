@@ -1,4 +1,5 @@
 import asyncio
+import math
 
 import pytest
 
@@ -8,6 +9,8 @@ from eventful.utilities import async_debounce
 def test_construction_and_metadata() -> None:
     with pytest.raises(ValueError, match="non-negative"):
         async_debounce(-0.1)
+    with pytest.raises(ValueError, match="non-negative"):
+        async_debounce(math.nan)
 
     @async_debounce(0)
     async def callback(value: int) -> None:
@@ -30,6 +33,7 @@ async def test_coalesces_calls_and_delivers_latest_event() -> None:
     await callback(2)
     await asyncio.sleep(0.04)
     assert delivered == [2]
+    assert await callback.flush() is None
     await callback.cancel()
 
 
@@ -118,3 +122,17 @@ async def test_cancel_stops_callback_started_by_flush() -> None:
     with pytest.raises(asyncio.CancelledError):
         await flushing
     assert stopped.is_set()
+
+
+async def test_callback_can_flush_itself_without_awaiting_itself() -> None:
+    flushed = []
+
+    @async_debounce(0)
+    async def callback() -> None:
+        flushed.append(await callback.flush())
+
+    await callback()
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert flushed == [None]
+    await callback.cancel()

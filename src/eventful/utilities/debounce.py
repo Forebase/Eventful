@@ -174,7 +174,10 @@ def async_debounce(interval: float) -> Callable:
     Callable
         Decorated async function.
     """
-    if interval < 0:
+    # Written this way rather than ``interval < 0`` so NaN is rejected too: NaN
+    # is not a meaningful non-negative delay and asyncio's handling varies by
+    # Python version.
+    if not interval >= 0:
         raise ValueError("interval must be non-negative")
 
     def decorator(func: Callable) -> Callable:
@@ -186,7 +189,9 @@ def async_debounce(interval: float) -> Callable:
 
         def task_finished(finished: asyncio.Task) -> None:
             """Observe task failures even if the application never calls us again."""
-            nonlocal failure
+            nonlocal failure, task
+            if task is finished:
+                task = None
             if finished.cancelled():
                 return
             exception = finished.exception()
@@ -258,6 +263,11 @@ def async_debounce(interval: float) -> Callable:
                     task = running
                 else:
                     running = task
+                if running is asyncio.current_task():
+                    # A callback flushing itself with no newly pending invocation
+                    # has nothing to deliver.  Awaiting ``running`` here would make
+                    # the task await itself and raise at runtime.
+                    return None
                 if running is not None:
                     foreground_tasks.add(running)
             if running is None:
