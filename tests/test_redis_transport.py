@@ -167,6 +167,43 @@ class FakeRedis:
         self.closed = True
 
 
+class FailingCleanupPubSub(FakePubSub):
+    """Model failure while closing an established or cancelled subscription."""
+
+    def __init__(self, client: FakeRedis, *, cancel_subscribe: bool = False) -> None:
+        super().__init__(client)
+        self.cancel_subscribe = cancel_subscribe
+
+    async def subscribe(self, channel: str) -> None:
+        """Optionally model cancellation during subscription setup."""
+        if self.cancel_subscribe:
+            raise asyncio.CancelledError
+        await super().subscribe(channel)
+
+    async def unsubscribe(self, channel: str) -> None:
+        """Fail while attempting server-side cleanup."""
+        del channel
+        raise ConnectionError("unsubscribe cleanup failed")
+
+    async def aclose(self) -> None:
+        """Fail while attempting local Pub/Sub cleanup."""
+        raise ConnectionError("Pub/Sub close cleanup failed")
+
+
+class FailingCleanupRedis(FakeRedis):
+    """Create Pub/Sub resources whose cleanup always fails."""
+
+    def __init__(self, *, cancel_subscribe: bool = False) -> None:
+        super().__init__()
+        self.cancel_subscribe = cancel_subscribe
+
+    def pubsub(self) -> FailingCleanupPubSub:
+        """Return one failure-configured fake Pub/Sub resource."""
+        return FailingCleanupPubSub(
+            self, cancel_subscribe=self.cancel_subscribe
+        )
+
+
 async def next_event(consumer: Consumer) -> Event:
     """Read one event and close the asynchronous iterator deterministically."""
     iterator = consumer.consume()
@@ -308,6 +345,38 @@ async def test_consumer_cancellation_cleans_up_subscription() -> None:
     assert not fake.subscriptions
     with pytest.raises(TransportError, match="consumer is closed"):
         await anext(consumer.consume())
+    await transport.close()
+
+
+@pytest.mark.asyncio
+async def test_explicit_iterator_close_surfaces_cleanup_failure() -> None:
+    """Do not let GeneratorExit hide failed unsubscribe and Pub/Sub cleanup."""
+    transport, _ = make_transport(FailingCleanupRedis())
+    consumer = transport.consumer("sample")
+    iterator = consumer.consume()
+    pending = asyncio.create_task(anext(iterator))
+    await asyncio.sleep(0)
+    await transport.publisher().publish(Event("sample"))
+    assert await pending == Event("sample")
+
+    with pytest.raises(TransportError, match="consumer close failed") as raised:
+        await iterator.aclose()
+    assert isinstance(raised.value.__cause__, ConnectionError)
+    await transport.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_subscribe_preserves_cancellation_when_cleanup_fails() -> None:
+    """Keep CancelledError primary if incomplete-subscription cleanup also fails."""
+    transport, _ = make_transport(FailingCleanupRedis(cancel_subscribe=True))
+    consumer = transport.consumer("sample")
+
+    with pytest.raises(asyncio.CancelledError) as raised:
+        await consumer.subscribe()
+    assert raised.value.__notes__ == [
+        "Redis subscription cleanup also failed: "
+        "ConnectionError('Pub/Sub close cleanup failed')"
+    ]
     await transport.close()
 
 

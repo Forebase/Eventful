@@ -128,8 +128,10 @@ class RedisConsumer:
                 await self.close()
             except TransportError:
                 # Cleanup must not replace cancellation, malformed-message, or
-                # connection errors already escaping the iterator.
-                if active_failure is None:
+                # connection errors already escaping the iterator. GeneratorExit
+                # denotes an explicit/normal iterator close, so its cleanup error
+                # remains observable to the caller.
+                if active_failure is None or isinstance(active_failure, GeneratorExit):
                     raise
 
     async def close(self) -> None:
@@ -171,9 +173,17 @@ class RedisConsumer:
                 # Cancellation is deliberately included: a connection attempt may
                 # be cancelled while redis-py is reconnecting, but its Pub/Sub
                 # object must not retain a duplicate server-side subscription.
-                await asyncio.shield(pubsub.aclose())
+                try:
+                    await asyncio.shield(pubsub.aclose())
+                except BaseException as cleanup_exc:
+                    # In particular, task cancellation must remain cancellation
+                    # even when a broken connection also makes cleanup fail.
+                    exc.add_note(
+                        "Redis subscription cleanup also failed: "
+                        f"{cleanup_exc!r}"
+                    )
                 if isinstance(exc, asyncio.CancelledError):
-                    raise
+                    raise exc
                 raise TransportError(
                     f"Redis subscribe failed for topic {self.topic!r}"
                 ) from exc
