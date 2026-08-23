@@ -7,6 +7,9 @@ import pytest
 def test_minimal_root_imports() -> None:
     import eventful
     assert eventful.__version__ == "0.2.0"
+    assert "emit_sync" in eventful.__all__
+    assert "emit_async" in eventful.__all__
+    assert "AsyncDispatchRequired" in eventful.__all__
     assert "RedisBus" not in eventful.__all__
 
 

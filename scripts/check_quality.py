@@ -14,6 +14,7 @@ COMMANDS = (
     (sys.executable, "-m", "mypy", "src/eventful"),
     (sys.executable, "-m", "pytest", "--cov=eventful"),
     (sys.executable, "scripts/check_annotations.py"),
+    (sys.executable, "scripts/check_docstrings.py"),
     (sys.executable, "-m", "build"),
     (sys.executable, "-m", "mkdocs", "build", "--strict"),
 )

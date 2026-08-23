@@ -9,11 +9,13 @@ class JsonCodec:
     """Encode Event objects as UTF-8 JSON."""
     media_type = "application/json"
     def encode(self, event: Event) -> bytes:
+        """Encode all public event fields as UTF-8 JSON."""
         try:
             return json.dumps({"type": event.type, "payload": event.payload, "metadata": event.metadata, "tags": sorted(event.tags)}).encode()
         except (TypeError, ValueError) as exc:
             raise CodecError(str(exc)) from exc
     def decode(self, data: bytes) -> Event:
+        """Decode UTF-8 JSON or raise :class:`CodecError` for invalid input."""
         try:
             raw: dict[str, Any] = json.loads(data.decode())
             return Event(type=raw["type"], payload=raw.get("payload"), metadata=raw.get("metadata", {}), tags=set(raw.get("tags", [])))

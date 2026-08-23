@@ -1,6 +1,6 @@
 # Eventful
 
-Eventful 0.2.0 is a pre-alpha foundation for a Python event toolkit. The implemented public facade is a local in-memory dispatcher (`Event`, `EventBus`, `InMemoryBus`, `listener`, and `emit`). v1-oriented packages provide provisional contracts for brokers, durable streams, codecs, stores, middleware, plugins, configuration, schemas, and observability.
+Eventful 0.2.0 is a pre-alpha foundation for a Python event toolkit. The implemented public facade is a local in-memory dispatcher (`Event`, `EventBus`, `InMemoryBus`, `listener`, `emit_sync`, `emit_async`, and the compatibility helper `emit`). v1-oriented packages provide provisional contracts for brokers, durable streams, codecs, stores, middleware, plugins, configuration, schemas, and observability.
 
 ## Install
 
@@ -29,7 +29,7 @@ def handle(event: Event) -> str:
     return f"hello {event.payload}"
 
 bus.register("user.created", handle)
-assert bus.emit(Event(type="user.created", payload="Ada")) == ["hello Ada"]
+assert bus.emit_sync(Event(type="user.created", payload="Ada")) == ["hello Ada"]
 ```
 
 ## API status

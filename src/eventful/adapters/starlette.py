@@ -1,4 +1,8 @@
-"""Experimental Starlette middleware helpers."""
+"""Experimental Starlette request-state boundary.
+
+The middleware exposes a local bus through request state but does not own bus
+startup or shutdown. Full ASGI lifespan integration remains deferred.
+"""
 from __future__ import annotations
 
 from typing import Any
