@@ -21,9 +21,9 @@ Eventful aims to become a small library, framework integration layer, and develo
 | Package | Status | Purpose |
 | --- | --- | --- |
 | `eventful` | provisional | 0.1-compatible facade and local bus |
-| `eventful.contracts` | provisional | minimal Protocol contracts |
-| `eventful.codecs` | experimental | encoding/decoding namespaces |
-| `eventful.stores` | experimental | event store namespace |
+| `eventful.contracts` | provisional | typed, runtime-checkable component boundaries |
+| `eventful.codecs` | provisional | codec contract and JSON conformance reference |
+| `eventful.stores` | provisional | event-store contract and volatile conformance reference |
 | `eventful.transports` | experimental | broker/stream transport namespace |
 | `eventful.adapters` | experimental | web framework adapters |
 | `eventful.middleware` | experimental | middleware extension namespace |
@@ -38,7 +38,7 @@ Until 1.0, APIs are stable only when explicitly marked stable. Provisional APIs 
 
 ## Extension model
 
-Extensions should implement the Protocols in `eventful.contracts` and raise component-specific errors when optional dependencies are missing.
+Extensions should implement the Protocols in `eventful.contracts`, pass the relevant behavioral conformance suite, and raise component-specific errors when optional dependencies are missing. See [architectural contracts](contracts.md) for lifecycle and validation decisions.
 
 ## Configuration philosophy
 
@@ -66,4 +66,4 @@ Eventful 0.2 does not claim distributed delivery, durable persistence, Redis/Pos
 
 ## Development workflow
 
-Run `python -m pip install -e '.[dev]'`, then `ruff check .`, `mypy src/eventful`, `pytest`, and `python -m build`.
+Run `python -m pip install -e '.[dev]'`, then `python scripts/check_quality.py` to execute the same checks as CI.

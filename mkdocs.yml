@@ -3,6 +3,7 @@ nav:
   - Home: index.md
   - API: api.md
   - Core Semantics: core-semantics.md
+  - Architectural Contracts: contracts.md
   - Quickstart: quickstart.md
   - Work Register: work-register.md
   - Annotation Policy: annotation-policy.md

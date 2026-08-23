@@ -11,7 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 COMMANDS = (
     (sys.executable, "-m", "ruff", "check", "."),
-    (sys.executable, "-m", "mypy", "src/eventful"),
+    (
+        sys.executable,
+        "-m",
+        "mypy",
+        "src/eventful",
+        "tests/contract_typing.py",
+    ),
     (sys.executable, "-m", "pytest", "--cov=eventful"),
     (sys.executable, "scripts/check_annotations.py"),
     (sys.executable, "scripts/check_docstrings.py"),

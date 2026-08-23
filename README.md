@@ -37,3 +37,6 @@ assert bus.emit_sync(Event(type="user.created", payload="Ada")) == ["hello Ada"]
 No API is stable before 1.0. The root facade is preserved for 0.1 compatibility and treated as provisional. Experimental packages are importable for architecture work but should not be treated as production integrations.
 
 See `docs/index.md` for the documentation map and `docs/work-register.md` for deferred work.
+
+The provisional `JsonCodec` and `InMemoryEventStore` are dependency-free
+conformance references, not production transport or durable-storage integrations.

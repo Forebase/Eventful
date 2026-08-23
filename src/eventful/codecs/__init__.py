@@ -1,11 +1,13 @@
-"""Experimental codecs package for Eventful v1 topology.
+"""Provisional serialization contracts and reference codecs.
 
-This namespace intentionally exposes typed contracts and small in-memory helpers
-only; production integrations will graduate through 0.x with explicit status.
+`JsonCodec` is the dependency-free behavioral reference. Schema evolution and
+binary codecs remain outside this package's current responsibility.
 """
+
 from __future__ import annotations
 
 from eventful.api_status import ApiStatus
+from eventful.codecs.json import JsonCodec
 
-API_STATUS = ApiStatus.EXPERIMENTAL
-__all__ = ["API_STATUS"]
+API_STATUS = ApiStatus.PROVISIONAL
+__all__ = ["API_STATUS", "JsonCodec"]

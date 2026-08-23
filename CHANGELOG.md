@@ -7,3 +7,5 @@
 - Added repository governance, documentation, CI, and annotation policy.
 - Specified explicit synchronous and asynchronous local dispatch semantics.
 - Added public-boundary documentation enforcement and core behavior coverage.
+- Refined architectural contracts around explicit async I/O lifecycles.
+- Added JSON codec and in-memory event-store conformance references.
