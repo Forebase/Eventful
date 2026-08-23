@@ -45,7 +45,7 @@ class Event:
         return self._propagation_stopped
 
 
-def ensure_event(event: Event | dict | Any) -> Event:
+def ensure_event(event: Event | dict[str, Any] | Any) -> Event:
     """
     Convert input to an Event instance if needed.
 

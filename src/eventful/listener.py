@@ -4,8 +4,14 @@ Listener registration and management.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Optional, Set
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from typing import Any, TypeVar
+
+from .event import Event
+
+ListenerCallable = Callable[[Event], Any]
+ListenerCallableT = TypeVar("ListenerCallableT", bound=ListenerCallable)
 
 
 @dataclass
@@ -13,13 +19,9 @@ class ListenerConfig:
     """Configuration for a listener."""
 
     priority: int = 0
-    tags: Set[str] = None  # type: ignore
-    filter_fn: Optional[Callable[[Any], bool]] = None
+    tags: set[str] = field(default_factory=set)
+    filter_fn: Callable[[Event], bool] | None = None
     once: bool = False
-
-    def __post_init__(self):
-        if self.tags is None:
-            self.tags = set()
 
 
 class Listener:
@@ -27,14 +29,14 @@ class Listener:
     Wrapper for listener functions with configuration.
     """
 
-    def __init__(self, func: Callable, config: ListenerConfig):
+    def __init__(self, func: ListenerCallable, config: ListenerConfig) -> None:
         self.func = func
         self.config = config
 
-    def __call__(self, event: Any) -> Any:
+    def __call__(self, event: Event) -> Any:
         return self.func(event)
 
-    def matches(self, event: Any) -> bool:
+    def matches(self, event: Event) -> bool:
         """Check if this listener matches the given event."""
         # Check tags
         if self.config.tags and not self.config.tags.issubset(event.tags):
@@ -52,9 +54,9 @@ def listener(
         *,
         priority: int = 0,
         tags: Iterable[str] = (),
-        filter: Optional[Callable[[Any], bool]] = None,
+        filter: Callable[[Event], bool] | None = None,
         once: bool = False
-) -> Callable:
+) -> Callable[[ListenerCallableT], ListenerCallableT]:
     """
     Decorator to register a function as an event listener.
 
@@ -77,7 +79,7 @@ def listener(
         Decorated function
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: ListenerCallableT) -> ListenerCallableT:
         nonlocal topic
         if topic is None:
             topic = func.__name__

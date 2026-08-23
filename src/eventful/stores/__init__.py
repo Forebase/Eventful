@@ -1,11 +1,13 @@
-"""Experimental stores package for Eventful v1 topology.
+"""Provisional event-store contract implementations.
 
-This namespace intentionally exposes typed contracts and small in-memory helpers
-only; production integrations will graduate through 0.x with explicit status.
+`InMemoryEventStore` is a volatile conformance reference. Durable storage,
+cross-process coordination, and database migrations belong to persistence backends.
 """
+
 from __future__ import annotations
 
 from eventful.api_status import ApiStatus
+from eventful.stores.memory import InMemoryEventStore
 
-API_STATUS = ApiStatus.EXPERIMENTAL
-__all__ = ["API_STATUS"]
+API_STATUS = ApiStatus.PROVISIONAL
+__all__ = ["API_STATUS", "InMemoryEventStore"]

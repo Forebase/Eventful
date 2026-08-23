@@ -4,8 +4,6 @@ Event dispatch ordering and prioritization.
 
 from __future__ import annotations
 
-from typing import List
-
 from .listener import Listener
 
 
@@ -28,7 +26,7 @@ class Dispatcher:
         self.enable_priorities = enable_priorities
         self.propagation_enabled = propagation_enabled
 
-    def dispatch_order(self, listeners: List[Listener]) -> List[Listener]:
+    def dispatch_order(self, listeners: list[Listener]) -> list[Listener]:
         """
         Get listeners in the correct dispatch order.
 
@@ -47,6 +45,6 @@ class Dispatcher:
             sorted_listeners = sorted(listeners, key=lambda l: l.config.priority, reverse=True)
         else:
             # Pure FIFO (maintain original order)
-            sorted_listeners = listeners
+            sorted_listeners = list(listeners)
 
         return sorted_listeners

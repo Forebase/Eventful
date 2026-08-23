@@ -14,23 +14,25 @@ Eventful aims to become a small library, framework integration layer, and develo
 
 - **Local dispatcher:** in-process listener routing; no durability or cross-process delivery.
 - **Broker transport:** future integration for Redis or other brokers; delivery depends on broker behavior.
-- **Durable stream:** future append/read store with replay positions and explicit reliability contracts.
+- **Durable store:** provisional PostgreSQL append/replay with opaque positions,
+  explicit migrations, and deployment-owned operational durability.
 
 ## Package map
 
 | Package | Status | Purpose |
 | --- | --- | --- |
 | `eventful` | provisional | 0.1-compatible facade and local bus |
-| `eventful.contracts` | provisional | minimal Protocol contracts |
-| `eventful.codecs` | experimental | encoding/decoding namespaces |
-| `eventful.stores` | experimental | event store namespace |
-| `eventful.transports` | experimental | broker/stream transport namespace |
-| `eventful.adapters` | experimental | web framework adapters |
-| `eventful.middleware` | experimental | middleware extension namespace |
-| `eventful.plugins` | experimental | plugin extension namespace |
-| `eventful.configuration` | experimental | configuration source namespace |
-| `eventful.schemas` | experimental | schema registry namespace |
-| `eventful.observability` | experimental | tracing/metrics/logging provider namespace |
+| `eventful.contracts` | provisional | typed, runtime-checkable component boundaries |
+| `eventful.codecs` | provisional | codec contract and JSON conformance reference |
+| `eventful.stores` | provisional | event-store contract and volatile conformance reference |
+| `eventful.transports` | provisional | Redis Pub/Sub transport with at-most-once delivery |
+| `eventful.persistence` | provisional | file and durable PostgreSQL event stores |
+| `eventful.adapters` | provisional | FastAPI/Starlette request state and lifespan ownership |
+| `eventful.middleware` | provisional | ordered per-listener middleware chain |
+| `eventful.plugins` | provisional | explicit plugin management and opt-in discovery |
+| `eventful.configuration` | provisional | immutable and composable configuration sources |
+| `eventful.schemas` | provisional | exact-type schema validation registry |
+| `eventful.observability` | provisional | isolated dispatch instrumentation providers |
 
 ## Public API policy
 
@@ -38,7 +40,7 @@ Until 1.0, APIs are stable only when explicitly marked stable. Provisional APIs 
 
 ## Extension model
 
-Extensions should implement the Protocols in `eventful.contracts` and raise component-specific errors when optional dependencies are missing.
+Extensions should implement the Protocols in `eventful.contracts`, pass the relevant behavioral conformance suite, and raise component-specific errors when optional dependencies are missing. See [architectural contracts](contracts.md) for lifecycle and validation decisions.
 
 ## Configuration philosophy
 
@@ -62,8 +64,10 @@ Local dispatch is best-effort and process-local. Durable claims require explicit
 
 ## Non-goals
 
-Eventful 0.2 does not claim distributed delivery, durable persistence, Redis/PostgreSQL production readiness, or performance benchmarks.
+Eventful 0.2 does not claim exactly-once distributed delivery, automatic PostgreSQL
+operations, Redis Streams durability, or performance benchmarks. PostgreSQL commit
+durability and availability depend on deployment configuration.
 
 ## Development workflow
 
-Run `python -m pip install -e '.[dev]'`, then `ruff check .`, `mypy src/eventful`, `pytest`, and `python -m build`.
+Run `python -m pip install -e '.[dev]'`, then `python scripts/check_quality.py` to execute the same checks as CI.
