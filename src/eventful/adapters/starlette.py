@@ -69,10 +69,16 @@ class EventfulMiddleware:
 
         try:
             await self.app(scope, receive, lifespan_send)
-        except BaseException:
+        except BaseException as application_error:
             # A lifespan exception may prevent the application from sending either
             # terminal message. Do not strand a bus that this adapter created.
-            await self.close()
+            try:
+                await self.close()
+            except BaseException as cleanup_error:
+                raise BaseExceptionGroup(
+                    "lifespan application and Eventful cleanup failed",
+                    [application_error, cleanup_error],
+                ) from None
             raise
 
     async def close(self) -> None:

@@ -86,12 +86,15 @@ registrations. Use separate application instances or a custom `bus_factory` when
 tests or tenants require distinct registration state. `state_key=` supports
 coexistence with another request-state convention.
 
-Each middleware instance creates its own bus, so concurrently running application
-instances are isolated. This is process-local isolation only: pre-fork and
-multi-worker deployments create one adapter-owned bus per worker. Eventful does not
-coordinate registrations or delivery between workers; inject a caller-managed
-transport-backed bus when cross-process behavior is required. Do not share one
-adapter-owned middleware instance between event loops.
+Each middleware instance using the default bus or `bus_factory=` creates its own bus,
+so those concurrently running application instances are isolated. Injected buses
+have caller-defined scope: injecting the same `bus=` into multiple applications
+intentionally shares registrations and delivery state, and isolation is the caller's
+responsibility. This is process-local isolation only: pre-fork and multi-worker
+deployments create one adapter-owned bus per worker. Eventful does not coordinate
+registrations or delivery between workers; inject a caller-managed transport-backed
+bus when cross-process behavior is required. Do not share one adapter-owned
+middleware instance between event loops.
 
 ## Supported versions
 

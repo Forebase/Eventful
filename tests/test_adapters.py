@@ -194,6 +194,30 @@ def test_owned_bus_is_cleaned_up_after_startup_failure() -> None:
     assert raised_bus.close_calls == 1
 
 
+def test_startup_and_cleanup_failures_are_both_preserved() -> None:
+    """Report cleanup failure without replacing the startup root cause."""
+    class FailingCloseBus(EventBus):
+        async def close(self) -> None:
+            raise OSError("cleanup exploded")
+
+    async def raising_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await receive()
+        raise RuntimeError("startup exploded")
+
+    middleware = EventfulMiddleware(raising_app, bus_factory=FailingCloseBus)
+    try:
+        asyncio.run(invoke_lifespan(middleware))
+    except BaseExceptionGroup as exc:
+        assert [str(error) for error in exc.exceptions] == [
+            "startup exploded",
+            "cleanup exploded",
+        ]
+        assert isinstance(exc.exceptions[0], RuntimeError)
+        assert isinstance(exc.exceptions[1], OSError)
+    else:
+        raise AssertionError("both lifespan failures should propagate")
+
+
 def test_startup_failure_preserves_application_owned_bus() -> None:
     """Do not clean up an injected bus merely because application startup fails."""
     async def failed_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
