@@ -13,6 +13,7 @@ Optional integrations are component-specific and provisional:
 ```bash
 pip install 'eventful[redis]'
 pip install 'eventful[postgres]'
+pip install 'eventful[file]'  # explicit but dependency-free
 pip install 'eventful[fastapi]'
 pip install 'eventful[all]'
 ```
@@ -44,6 +45,20 @@ conformance references, not production transport or durable-storage integrations
 not provide replay or durability.
 `PostgresPersistence` provides transactional append/replay with explicit migrations,
 idempotency keys, and optional table-wide optimistic concurrency.
+`FilePersistence` is a deterministic, single-process UTF-8 JSON Lines backend with
+bounded rotation and physical-line replay offsets; it has no third-party dependency.
 FastAPI and Starlette adapters expose application-owned buses through request state
 and coordinate opt-in ASGI lifespan cleanup. Middleware, schemas, observability,
 configuration sources, and plugins have dependency-free provisional references.
+
+## Async utility lifecycle
+
+`eventful.utilities.async_debounce(interval)` is a synchronous decorator factory
+for async callbacks. Calling its async wrapper schedules the latest invocation and
+coalesces earlier pending invocations. Applications should `await wrapper.flush()`
+to deliver pending work immediately or `await wrapper.cancel()` to discard it;
+both methods wait for associated tasks, so either can be used during event-loop
+shutdown. Background callback failures are observed internally and re-raised by
+the next wrapper, `flush`, or `cancel` call rather than being reported as
+unretrieved task exceptions. A callback run directly by `flush` raises through
+that `flush` call.

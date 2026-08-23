@@ -5,6 +5,7 @@ Debouncing utilities for event listeners.
 from __future__ import annotations
 
 import asyncio
+from functools import wraps
 import time
 from typing import Callable, Optional, Any
 from threading import Lock, Timer
@@ -147,9 +148,21 @@ class Debouncer:
             self.pending_event = None
             return pending
 
-async def async_debounce(interval: float) -> Callable:
+def async_debounce(interval: float) -> Callable:
     """
-    Async version of debounce decorator.
+    Debounce an async callback without blocking its caller.
+
+    Calls to the wrapper replace pending calls and return after the replacement has
+    been scheduled.  ``await wrapper.flush()`` immediately delivers the latest
+    pending call (or waits for a callback already in progress), while
+    ``await wrapper.cancel()`` discards pending work (or cancels work in progress).
+    Both lifecycle methods wait for the background task to finish, making them safe
+    to use during event-loop shutdown.
+
+    Callback exceptions are retrieved from the background task to avoid unobserved
+    task warnings.  They are re-raised by the next wrapper, ``cancel``, or ``flush``
+    call.  An exception raised by a callback invoked directly by ``flush`` is raised
+    by ``flush`` itself.
 
     Parameters
     ----------
@@ -161,31 +174,114 @@ async def async_debounce(interval: float) -> Callable:
     Callable
         Decorated async function.
     """
+    # Written this way rather than ``interval < 0`` so NaN is rejected too: NaN
+    # is not a meaningful non-negative delay and asyncio's handling varies by
+    # Python version.
+    if not interval >= 0:
+        raise ValueError("interval must be non-negative")
+
     def decorator(func: Callable) -> Callable:
-        last_call_time = 0.0
-        task = None
+        task: Optional[asyncio.Task] = None
+        pending: Optional[tuple[tuple[Any, ...], dict[str, Any]]] = None
+        failure: Optional[BaseException] = None
+        foreground_tasks: set[asyncio.Task] = set()
         lock = asyncio.Lock()
 
-        async def wrapper(event) -> None:
-            nonlocal last_call_time, task
+        def task_finished(finished: asyncio.Task) -> None:
+            """Observe task failures even if the application never calls us again."""
+            nonlocal failure, task
+            if task is finished:
+                task = None
+            if finished.cancelled():
+                return
+            exception = finished.exception()
+            if exception is not None and finished not in foreground_tasks:
+                failure = exception
 
-            current_time = time.time()
-            last_call_time = current_time
+        async def stop_task(*, cancel_self: bool = False) -> None:
+            nonlocal task
+            current, task = task, None
+            if current is None:
+                return
+            if current is asyncio.current_task():
+                # A callback may invoke its own wrapper.  It must not await itself;
+                # the caller will install the replacement task after this returns.
+                if cancel_self:
+                    current.cancel()
+                return
+            if not current.done():
+                current.cancel()
+            await asyncio.gather(current, return_exceptions=True)
+            await asyncio.sleep(0)
 
+        def raise_failure() -> None:
+            nonlocal failure
+            if failure is not None:
+                exception, failure = failure, None
+                raise exception
+
+        async def delayed_call(deadline: float) -> None:
+            nonlocal pending
+            loop = asyncio.get_running_loop()
+            await asyncio.sleep(max(0.0, deadline - loop.time()))
             async with lock:
-                # Cancel previous task
-                if task and not task.done():
-                    task.cancel()
+                call, pending = pending, None
+            if call is not None:
+                args, kwargs = call
+                await func(*args, **kwargs)
 
-                # Schedule new task
-                async def delayed_call():
-                    await asyncio.sleep(interval)
-                    # Check if we're still the most recent call
-                    nonlocal last_call_time
-                    if time.time() - last_call_time >= interval:
-                        await func(event)
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> None:
+            nonlocal task, pending
+            async with lock:
+                raise_failure()
+                await stop_task()
+                raise_failure()
+                pending = (args, kwargs)
+                loop = asyncio.get_running_loop()
+                task = loop.create_task(delayed_call(loop.time() + interval))
+                task.add_done_callback(task_finished)
 
-                task = asyncio.create_task(delayed_call())
+        async def cancel() -> None:
+            nonlocal pending
+            async with lock:
+                pending = None
+                await stop_task(cancel_self=True)
+                raise_failure()
+
+        async def flush() -> Any:
+            nonlocal pending, task
+            async with lock:
+                raise_failure()
+                call, pending = pending, None
+                if call is not None:
+                    await stop_task()
+                    args, kwargs = call
+                    loop = asyncio.get_running_loop()
+                    running = loop.create_task(func(*args, **kwargs))
+                    running.add_done_callback(task_finished)
+                    task = running
+                else:
+                    running = task
+                if running is asyncio.current_task():
+                    # A callback flushing itself with no newly pending invocation
+                    # has nothing to deliver.  Awaiting ``running`` here would make
+                    # the task await itself and raise at runtime.
+                    return None
+                if running is not None:
+                    foreground_tasks.add(running)
+            if running is None:
+                return None
+            try:
+                return await running
+            finally:
+                foreground_tasks.discard(running)
+                async with lock:
+                    if task is running:
+                        task = None
+
+        wrapper.cancel = cancel
+        wrapper.flush = flush
 
         return wrapper
 

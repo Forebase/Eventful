@@ -5,6 +5,7 @@ nav:
   - Core Semantics: core-semantics.md
   - Architectural Contracts: contracts.md
   - Redis Transport: redis.md
+  - File Persistence: file-persistence.md
   - PostgreSQL Persistence: postgres.md
   - Framework Adapters: frameworks.md
   - Extension Points: extensions.md

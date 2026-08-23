@@ -14,8 +14,8 @@ Eventful aims to become a small library, framework integration layer, and develo
 
 - **Local dispatcher:** in-process listener routing; no durability or cross-process delivery.
 - **Broker transport:** future integration for Redis or other brokers; delivery depends on broker behavior.
-- **Durable store:** provisional PostgreSQL append/replay with opaque positions,
-  explicit migrations, and deployment-owned operational durability.
+- **Durable store:** provisional dependency-free file persistence for one process,
+  plus PostgreSQL append/replay with deployment-owned operational durability.
 
 ## Package map
 
@@ -26,7 +26,7 @@ Eventful aims to become a small library, framework integration layer, and develo
 | `eventful.codecs` | provisional | codec contract and JSON conformance reference |
 | `eventful.stores` | provisional | event-store contract and volatile conformance reference |
 | `eventful.transports` | provisional | Redis Pub/Sub transport with at-most-once delivery |
-| `eventful.persistence` | provisional | file and durable PostgreSQL event stores |
+| `eventful.persistence` | provisional | deterministic JSON Lines and durable PostgreSQL event stores |
 | `eventful.adapters` | provisional | FastAPI/Starlette request state and lifespan ownership |
 | `eventful.middleware` | provisional | ordered per-listener middleware chain |
 | `eventful.plugins` | provisional | explicit plugin management and opt-in discovery |
@@ -53,6 +53,8 @@ An **event** has a type, payload, metadata, and tags. **Delivery** means invokin
 ## Reliability and security
 
 Local dispatch is best-effort and process-local. Durable claims require explicit store contracts, acknowledgements, replay semantics, validation, and security review.
+File persistence is thread-safe within one process, not a multi-process database;
+see the [file persistence guide](file-persistence.md).
 
 ## Roadmap
 
