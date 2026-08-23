@@ -11,6 +11,11 @@ pip install eventful
 Prefer an application-owned bus so tests and application instances do not share
 registrations:
 
+The complete, runnable source for this example is
+[`examples/local_dispatch.py`](../examples/local_dispatch.py). The documentation
+test imports that file directly, so the demonstrated behavior cannot drift from
+the program.
+
 ```python
 from eventful import Event, InMemoryBus
 

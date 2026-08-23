@@ -12,6 +12,11 @@ and media type for validation and indexing.
 
 ## Setup and migrations
 
+A complete append-and-replay program is available at
+[`examples/postgres_persistence.py`](../examples/postgres_persistence.py). It reads
+`EVENTFUL_POSTGRES_URL`, and the service-backed documentation test invokes its
+`main` function rather than copying its operations.
+
 Pool creation and schema migration are explicit:
 
 ```python
