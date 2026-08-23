@@ -1,7 +1,38 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   checks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '${{ matrix.python-version }}'}
+      - run: python -m pip install -e '.[dev]'
+      - run: python scripts/check_quality.py
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - run: python -m pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  installation:
+    name: Python ${{ matrix.python-version }} / ${{ matrix.installation }}
+    needs: build
     runs-on: ubuntu-latest
     services:
       redis:
@@ -28,14 +59,72 @@ jobs:
       EVENTFUL_REDIS_URL: redis://localhost:6379/15
       EVENTFUL_POSTGRES_URL: postgresql://eventful:eventful@localhost:5432/eventful
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.13', '3.14']
+        installation: [wheel-core, sdist-core, redis, postgres, fastapi, starlette]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '${{ matrix.python-version }}'}
-      - run: python -m pip install -e '.[dev]'
-      - run: python scripts/check_quality.py
-      - run: python -m pip install --force-reinstall dist/*.whl
-      - run: python -c "import eventful; import eventful.contracts"
-      - run: python -c "import eventful.transports.redis; import eventful.persistence.postgres_persistence"
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+      - name: Install built distribution in an isolated environment
+        shell: bash
+        run: |
+          python -m venv .release-venv
+          . .release-venv/bin/activate
+          python -m pip install pytest pytest-asyncio
+          wheel=$(echo dist/*.whl)
+          sdist=$(echo dist/*.tar.gz)
+          case '${{ matrix.installation }}' in
+            wheel-core) python -m pip install "$wheel" ;;
+            sdist-core) python -m pip install "$sdist" ;;
+            *) python -m pip install "$wheel[${{ matrix.installation }}]" ;;
+          esac
+      - name: Import and behavior smoke tests
+        shell: bash
+        run: |
+          . .release-venv/bin/activate
+          case '${{ matrix.installation }}' in
+            wheel-core|sdist-core)
+              python - <<'PY'
+          import importlib.util
+          for module in ("redis", "asyncpg", "fastapi", "starlette"):
+              assert importlib.util.find_spec(module) is None, module
+          import eventful
+          import eventful.contracts
+          PY
+              python -m pytest \
+                tests/test_bus.py tests/test_contracts.py tests/test_dispatch.py \
+                tests/test_error.py tests/test_event.py tests/test_extensions.py \
+                tests/test_import_surface.py tests/test_init.py tests/test_router.py
+              ;;
+            redis)
+              python -c 'import eventful; import eventful.transports.redis; import redis.asyncio'
+              python -m pytest tests/test_redis_transport.py
+              ;;
+            postgres)
+              python -c 'import asyncpg; import eventful; import eventful.persistence.postgres_persistence'
+              python -m pytest tests/test_postgres_persistence.py
+              ;;
+            fastapi)
+              python -c 'import eventful; import eventful.adapters.fastapi; import fastapi'
+              python -m pytest tests/test_adapters.py
+              ;;
+            starlette)
+              python - <<'PY'
+          import asyncio
+          import eventful
+          import starlette
+          from eventful.adapters.starlette import EventfulMiddleware, request_event_bus
+
+          async def app(scope, receive, send):
+              assert request_event_bus(type("Request", (), {"state": type("State", (), scope["state"])()})())
+
+          asyncio.run(EventfulMiddleware(app)({"type": "http"}, None, None))
+          PY
+              ;;
+          esac
