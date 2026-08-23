@@ -188,6 +188,10 @@ class SchemaRegistry(Protocol):
         """Resolve a schema or return ``None`` when the type is unknown."""
         ...
 
+    def validate(self, event: Event) -> None:
+        """Validate a registered event or return when no schema exists."""
+        ...
+
 
 @runtime_checkable
 class ObservabilityProvider(Protocol):

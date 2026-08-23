@@ -18,6 +18,10 @@ class ContractError(EventfulError):
     """A component violated a documented Eventful contract."""
 
 
+class SchemaValidationError(ContractError):
+    """An event failed its registered application schema."""
+
+
 class CodecError(EventfulError):
     """Event encoding or decoding failed."""
 

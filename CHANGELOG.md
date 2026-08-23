@@ -13,3 +13,6 @@
   endpoint lifecycle, serialization validation, and service-backed integration tests.
 - Added durable PostgreSQL append/replay with migrations, idempotency, optimistic
   concurrency, bounded snapshot streaming, and service-backed integration tests.
+- Added FastAPI/Starlette request-state and lifespan adapters with explicit ownership.
+- Integrated middleware, schema validation, observability, configuration sources,
+  and plugin management as provisional cross-cutting extension paths.

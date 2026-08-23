@@ -27,12 +27,12 @@ Eventful aims to become a small library, framework integration layer, and develo
 | `eventful.stores` | provisional | event-store contract and volatile conformance reference |
 | `eventful.transports` | provisional | Redis Pub/Sub transport with at-most-once delivery |
 | `eventful.persistence` | provisional | file and durable PostgreSQL event stores |
-| `eventful.adapters` | experimental | web framework adapters |
-| `eventful.middleware` | experimental | middleware extension namespace |
-| `eventful.plugins` | experimental | plugin extension namespace |
-| `eventful.configuration` | experimental | configuration source namespace |
-| `eventful.schemas` | experimental | schema registry namespace |
-| `eventful.observability` | experimental | tracing/metrics/logging provider namespace |
+| `eventful.adapters` | provisional | FastAPI/Starlette request state and lifespan ownership |
+| `eventful.middleware` | provisional | ordered per-listener middleware chain |
+| `eventful.plugins` | provisional | explicit plugin management and opt-in discovery |
+| `eventful.configuration` | provisional | immutable and composable configuration sources |
+| `eventful.schemas` | provisional | exact-type schema validation registry |
+| `eventful.observability` | provisional | isolated dispatch instrumentation providers |
 
 ## Public API policy
 

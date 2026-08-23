@@ -26,6 +26,12 @@ instance, so do not reuse a stopped event for an unrelated emission.
 the explicit default backend name and currently has the same behavior. Neither
 class publishes to a broker or persists events.
 
+The constructor also accepts ordered `middleware`, an optional `schema_registry`,
+and best-effort `observability` providers. These components can be changed for later
+dispatches through `add_middleware`, `remove_middleware`, `set_schema_registry`,
+`add_observability_provider`, and `remove_observability_provider`. See
+[cross-cutting extension points](extensions.md) for ordering and failure boundaries.
+
 ### Registration
 
 ```python

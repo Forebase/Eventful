@@ -44,3 +44,6 @@ conformance references, not production transport or durable-storage integrations
 not provide replay or durability.
 `PostgresPersistence` provides transactional append/replay with explicit migrations,
 idempotency keys, and optional table-wide optimistic concurrency.
+FastAPI and Starlette adapters expose application-owned buses through request state
+and coordinate opt-in ASGI lifespan cleanup. Middleware, schemas, observability,
+configuration sources, and plugins have dependency-free provisional references.
