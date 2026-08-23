@@ -19,6 +19,8 @@ Each physical line is one UTF-8 JSON object followed by LF, with exactly the key
 `metadata`, `payload`, `tags`, and `type`. Encoding uses sorted object keys, compact
 separators, unescaped Unicode, rejects non-finite floats, and sorts event tags. The
 format never changes according to installed ambient packages.
+Replay also accepts records produced by the earlier backend, which have the same
+four event fields plus a `timestamp`; new appends never emit that legacy field.
 
 `start_id` is a zero-based **physical line offset across retained files**, oldest to
 newest. A malformed JSON line or malformed event object is logged and skipped, but

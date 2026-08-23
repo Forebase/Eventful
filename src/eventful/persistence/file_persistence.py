@@ -12,6 +12,9 @@ from typing import TextIO
 from eventful.event import Event
 from eventful.exceptions import StoreError
 
+_EVENT_FIELDS = {"metadata", "payload", "tags", "type"}
+_LEGACY_EVENT_FIELDS = _EVENT_FIELDS | {"timestamp"}
+
 
 class FilePersistence:
     """Persist events as dependency-free, UTF-8 JSON Lines records.
@@ -110,13 +113,11 @@ class FilePersistence:
                                         ValueError(f"invalid JSON constant {value}")
                                     ),
                                 )
-                                if not isinstance(data, dict) or set(data) != {
-                                    "metadata",
-                                    "payload",
-                                    "tags",
-                                    "type",
-                                }:
-                                    raise ValueError("record must contain exactly the event fields")
+                                if not isinstance(data, dict) or set(data) not in (
+                                    _EVENT_FIELDS,
+                                    _LEGACY_EVENT_FIELDS,
+                                ):
+                                    raise ValueError("record contains unsupported event fields")
                                 if not isinstance(data["type"], str):
                                     raise ValueError("event type must be a string")
                                 if not isinstance(data["metadata"], dict):
@@ -131,7 +132,13 @@ class FilePersistence:
                                     metadata=data["metadata"],
                                     tags=set(data["tags"]),
                                 )
-                            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                            except (
+                                json.JSONDecodeError,
+                                KeyError,
+                                RecursionError,
+                                TypeError,
+                                ValueError,
+                            ) as exc:
                                 logging.getLogger(__name__).warning(
                                     "Skipping malformed event record at offset %d: %s",
                                     line_offset,

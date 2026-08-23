@@ -9,6 +9,7 @@ import pytest
 from eventful import Event
 from eventful.exceptions import StoreError
 from eventful.persistence import FilePersistence
+from eventful.persistence import file_persistence
 
 
 def test_round_trip_is_utf8_and_deterministic(tmp_path) -> None:
@@ -47,6 +48,35 @@ def test_replay_offset_counts_malformed_records_and_batch_counts_events(tmp_path
 
     assert [event.payload for event in store.replay(start_id=1, batch=1)] == [2]
     assert [event.payload for event in store.replay(start_id=2, batch=2)] == [2, 3]
+
+
+def test_replay_accepts_legacy_timestamp_field(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        '{"type":"legacy","payload":1,"metadata":{},"tags":[],"timestamp":1.5}\n',
+        encoding="utf-8",
+    )
+
+    assert list(FilePersistence(path).replay()) == [Event("legacy", 1)]
+
+
+def test_replay_skips_record_beyond_json_recursion_limit(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        '{"metadata":{},"payload":0,"tags":[],"type":"deep"}\n'
+        '{"metadata":{},"payload":1,"tags":[],"type":"valid"}\n',
+        encoding="utf-8",
+    )
+    json_loads = file_persistence.json.loads
+
+    def loads_with_recursion_limit(record, **kwargs):
+        if '"type":"deep"' in record:
+            raise RecursionError("maximum recursion depth exceeded")
+        return json_loads(record, **kwargs)
+
+    monkeypatch.setattr(file_persistence.json, "loads", loads_with_recursion_limit)
+
+    assert list(FilePersistence(path).replay()) == [Event("valid", 1)]
 
 
 @pytest.mark.parametrize(
