@@ -31,7 +31,7 @@ acknowledgements, or durable delivery is required.
 ## Example
 
 The standalone version, including prerequisites and an environment-variable based
-connection URL, is [`examples/redis_pubsub.py`](../examples/redis_pubsub.py).
+connection URL, is [`examples/redis_pubsub.py`](examples.md#redis-pubsub).
 The service-backed documentation test runs that file's `main` function directly.
 
 ```python

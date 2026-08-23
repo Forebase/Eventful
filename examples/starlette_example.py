@@ -1,6 +1,6 @@
 """Starlette adapter example.
 
-Prerequisite: ``pip install -e '.[starlette]'``.
+Prerequisite: ``pip install -e '.[starlette]' uvicorn``.
 Run once and exit: ``python -m examples.starlette_example``
 Serve manually: ``uvicorn examples.starlette_example:app``
 """

@@ -1,6 +1,6 @@
 """FastAPI adapter example.
 
-Prerequisite: ``pip install -e '.[fastapi]'``.
+Prerequisite: ``pip install -e '.[fastapi]' uvicorn``.
 Run once and exit: ``python -m examples.fastapi_example``
 Serve manually: ``uvicorn examples.fastapi_example:app``
 """

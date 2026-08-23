@@ -9,6 +9,7 @@ nav:
   - Framework Adapters: frameworks.md
   - Extension Points: extensions.md
   - Quickstart: quickstart.md
+  - Runnable Examples: examples.md
   - Work Register: work-register.md
   - Annotation Policy: annotation-policy.md
   - Architecture decisions:

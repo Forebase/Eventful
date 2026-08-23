@@ -12,7 +12,7 @@ HTTP and WebSocket scope state without replacing Eventful's process-global defau
 
 ## FastAPI
 
-See [`examples/fastapi_example.py`](../examples/fastapi_example.py) for a standalone
+See [`examples/fastapi_example.py`](examples.md#fastapi) for a standalone
 program that makes an application-level request and exits. The documentation test
 imports its `app` and validates the real `/health` response.
 
@@ -38,7 +38,7 @@ explicit dependency ownership is recommended.
 
 ## Starlette
 
-See [`examples/starlette_example.py`](../examples/starlette_example.py) for the
+See [`examples/starlette_example.py`](examples.md#starlette) for the
 equivalent runnable Starlette application. Its exported `app` is also the object
 used by the application-level documentation test.
 

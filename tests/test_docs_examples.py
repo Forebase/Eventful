@@ -55,16 +55,37 @@ def test_framework_example_request(app: object, expected: dict[str, bool]) -> No
 
 
 @pytest.mark.parametrize(
-    ("document", "example"),
+    ("document", "example", "published_target"),
     [
-        ("docs/quickstart.md", "examples/local_dispatch.py"),
-        ("docs/redis.md", "examples/redis_pubsub.py"),
-        ("docs/postgres.md", "examples/postgres_persistence.py"),
-        ("docs/frameworks.md", "examples/fastapi_example.py"),
-        ("docs/frameworks.md", "examples/starlette_example.py"),
+        (
+            "docs/quickstart.md",
+            "examples/local_dispatch.py",
+            "examples.md#local-dispatch",
+        ),
+        ("docs/redis.md", "examples/redis_pubsub.py", "examples.md#redis-pubsub"),
+        (
+            "docs/postgres.md",
+            "examples/postgres_persistence.py",
+            "examples.md#postgresql-persistence",
+        ),
+        (
+            "docs/frameworks.md",
+            "examples/fastapi_example.py",
+            "examples.md#fastapi",
+        ),
+        (
+            "docs/frameworks.md",
+            "examples/starlette_example.py",
+            "examples.md#starlette",
+        ),
     ],
 )
-def test_documentation_links_to_runnable_source(document: str, example: str) -> None:
+def test_documentation_links_to_runnable_source(
+    document: str, example: str, published_target: str
+) -> None:
     """Require every documented integration to identify its canonical program."""
     with open(document, encoding="utf-8") as stream:
-        assert example in stream.read()
+        documentation = stream.read()
+    assert f"[`{example}`]({published_target})" in documentation
+    with open("docs/examples.md", encoding="utf-8") as stream:
+        assert f"Canonical source: `{example}`" in stream.read()
