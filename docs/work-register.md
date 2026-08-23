@@ -5,6 +5,6 @@ All intentional incompleteness must use an annotation listed in `docs/annotation
 | Module | Status | Deferred work |
 | --- | --- | --- |
 | `eventful.adapters` | provisional ASGI lifecycle | Validate multi-worker ownership and framework-version compatibility (Issue: Forebase/Eventful#1). |
-| `eventful.transports.redis` | provisional Pub/Sub | Validate operational reconnect and load behavior; Redis Streams durability remains deferred (Issue: Forebase/Eventful#2). |
+| `eventful.transports.redis` | provisional, service-validated Pub/Sub | Connection loss/restart gaps, cancellation cleanup, malformed input, concurrent publishing, and shutdown limits validated; delivery remains live at-most-once with no Eventful retry/replay or durability. Redis Streams remains deferred (Forebase/Eventful#2). |
 | `eventful.persistence.postgres_persistence` | provisional durable store | Validate migration upgrades, retention, replication, and operational load behavior (Issue: Forebase/Eventful#3). |
 | `eventful.contracts` | provisional, reference-validated | Validate async lifecycle, delivery, and durability semantics against real Redis/PostgreSQL integrations (Issue: Forebase/Eventful#4). |

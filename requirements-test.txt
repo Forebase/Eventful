@@ -1,0 +1,3 @@
+# Keep test dependencies centralized in pyproject.toml while providing IDEs with
+# a conventional requirements file to discover and install.
+-e .[test]
