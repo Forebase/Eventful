@@ -9,20 +9,54 @@ a fresh environment. The following commands are the local equivalent of the CI
 installation jobs; both `python3.13` and `python3.14` must complete them.
 
 ```bash
+(
+set -euo pipefail
+
+redis_container=
+postgres_container=
+cleanup() {
+  [ -z "$redis_container" ] || docker rm -f "$redis_container" >/dev/null 2>&1 || true
+  [ -z "$postgres_container" ] || docker rm -f "$postgres_container" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+wait_for_healthy() {
+  local container=$1
+  local service=$2
+  local status
+  for _ in {1..60}; do
+    status=$(docker inspect -f '{{.State.Health.Status}}' "$container")
+    case "$status" in
+      healthy) return 0 ;;
+      unhealthy)
+        echo "$service became unhealthy" >&2
+        return 1
+        ;;
+      starting) sleep 1 ;;
+      *)
+        echo "$service entered unexpected health state: $status" >&2
+        return 1
+        ;;
+    esac
+  done
+  echo "timed out waiting for $service to become healthy" >&2
+  return 1
+}
+
 rm -rf dist build .release-build .release-venv-*
 python3.13 -m venv .release-build
 .release-build/bin/python -m pip install build
 .release-build/bin/python -m build
 
-docker run --rm -d --name eventful-release-redis -p 6379:6379 \
+redis_container=$(docker run --rm -d --name eventful-release-redis -p 6379:6379 \
   --health-cmd 'redis-cli ping' --health-interval 1s --health-retries 30 \
-  redis:7-alpine
-docker run --rm -d --name eventful-release-postgres -p 5432:5432 \
+  redis:7-alpine)
+postgres_container=$(docker run --rm -d --name eventful-release-postgres -p 5432:5432 \
   -e POSTGRES_DB=eventful -e POSTGRES_USER=eventful \
   -e POSTGRES_PASSWORD=eventful --health-cmd 'pg_isready -U eventful -d eventful' \
-  --health-interval 1s --health-retries 30 postgres:16-alpine
-until [ "$(docker inspect -f '{{.State.Health.Status}}' eventful-release-redis)" = healthy ]; do sleep 1; done
-until [ "$(docker inspect -f '{{.State.Health.Status}}' eventful-release-postgres)" = healthy ]; do sleep 1; done
+  --health-interval 1s --health-retries 30 postgres:16-alpine)
+wait_for_healthy "$redis_container" Redis
+wait_for_healthy "$postgres_container" PostgreSQL
 export EVENTFUL_REDIS_URL=redis://localhost:6379/15
 export EVENTFUL_POSTGRES_URL=postgresql://eventful:eventful@localhost:5432/eventful
 
@@ -65,6 +99,5 @@ for python in python3.13 python3.14; do
     esac
   done
 done
-
-docker stop eventful-release-redis eventful-release-postgres
+)
 ```
