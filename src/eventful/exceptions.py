@@ -26,6 +26,10 @@ class StoreError(EventfulError):
     """Durable event storage failed."""
 
 
+class OptimisticConcurrencyError(StoreError):
+    """An append expected a store position that was no longer current."""
+
+
 class TransportError(EventfulError):
     """Broker transport operation or incoming message validation failed."""
 

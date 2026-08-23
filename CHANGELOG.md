@@ -11,3 +11,5 @@
 - Added JSON codec and in-memory event-store conformance references.
 - Added an asynchronous Redis Pub/Sub transport with explicit at-most-once delivery,
   endpoint lifecycle, serialization validation, and service-backed integration tests.
+- Added durable PostgreSQL append/replay with migrations, idempotency, optimistic
+  concurrency, bounded snapshot streaming, and service-backed integration tests.

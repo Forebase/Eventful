@@ -14,7 +14,8 @@ Eventful aims to become a small library, framework integration layer, and develo
 
 - **Local dispatcher:** in-process listener routing; no durability or cross-process delivery.
 - **Broker transport:** future integration for Redis or other brokers; delivery depends on broker behavior.
-- **Durable stream:** future append/read store with replay positions and explicit reliability contracts.
+- **Durable store:** provisional PostgreSQL append/replay with opaque positions,
+  explicit migrations, and deployment-owned operational durability.
 
 ## Package map
 
@@ -24,7 +25,8 @@ Eventful aims to become a small library, framework integration layer, and develo
 | `eventful.contracts` | provisional | typed, runtime-checkable component boundaries |
 | `eventful.codecs` | provisional | codec contract and JSON conformance reference |
 | `eventful.stores` | provisional | event-store contract and volatile conformance reference |
-| `eventful.transports` | experimental | broker/stream transport namespace |
+| `eventful.transports` | provisional | Redis Pub/Sub transport with at-most-once delivery |
+| `eventful.persistence` | provisional | file and durable PostgreSQL event stores |
 | `eventful.adapters` | experimental | web framework adapters |
 | `eventful.middleware` | experimental | middleware extension namespace |
 | `eventful.plugins` | experimental | plugin extension namespace |
@@ -62,7 +64,9 @@ Local dispatch is best-effort and process-local. Durable claims require explicit
 
 ## Non-goals
 
-Eventful 0.2 does not claim distributed delivery, durable persistence, Redis/PostgreSQL production readiness, or performance benchmarks.
+Eventful 0.2 does not claim exactly-once distributed delivery, automatic PostgreSQL
+operations, Redis Streams durability, or performance benchmarks. PostgreSQL commit
+durability and availability depend on deployment configuration.
 
 ## Development workflow
 

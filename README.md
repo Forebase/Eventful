@@ -42,3 +42,5 @@ The provisional `JsonCodec` and `InMemoryEventStore` are dependency-free
 conformance references, not production transport or durable-storage integrations.
 `RedisTransport` provides documented live, at-most-once Pub/Sub delivery; it does
 not provide replay or durability.
+`PostgresPersistence` provides transactional append/replay with explicit migrations,
+idempotency keys, and optional table-wide optimistic concurrency.

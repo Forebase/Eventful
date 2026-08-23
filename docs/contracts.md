@@ -53,6 +53,7 @@ negotiation.
 Redis Pub/Sub now validates publication, consumption, cancellation cleanup,
 serialization, and shared-client ownership against its transport contracts.
 Operational reconnect and load behavior still require longer-running validation.
-PostgreSQL durability, transactions, and cross-process ordering likewise await a
-real backend. These protocols remain provisional until those integrations pass the
-same conformance model with integration services.
+PostgreSQL now validates transactional append/read, cursor ordering, idempotency,
+optimistic concurrency, migrations, and reopen durability against a real service.
+Migration upgrades, retention, replication, and operational load behavior remain
+to be validated. The contracts remain provisional through that operational work.

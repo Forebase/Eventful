@@ -5,6 +5,7 @@ nav:
   - Core Semantics: core-semantics.md
   - Architectural Contracts: contracts.md
   - Redis Transport: redis.md
+  - PostgreSQL Persistence: postgres.md
   - Quickstart: quickstart.md
   - Work Register: work-register.md
   - Annotation Policy: annotation-policy.md

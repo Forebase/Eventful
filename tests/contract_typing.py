@@ -11,6 +11,7 @@ from eventful.contracts import (
     Transport,
 )
 from eventful.stores import InMemoryEventStore
+from eventful.persistence import PostgresPersistence
 from eventful.transports.redis import RedisTransport
 
 bus: EventBusContract = EventBus()
@@ -19,3 +20,4 @@ store: EventStore = InMemoryEventStore()
 transport: Transport = RedisTransport("redis://localhost:6379")
 publisher: Publisher = transport.publisher()
 consumer: Consumer = transport.consumer("typing.sample")
+postgres_store: EventStore = PostgresPersistence("postgresql://localhost/eventful")

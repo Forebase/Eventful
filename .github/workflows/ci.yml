@@ -12,8 +12,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: eventful
+          POSTGRES_USER: eventful
+          POSTGRES_PASSWORD: eventful
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U eventful -d eventful"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       EVENTFUL_REDIS_URL: redis://localhost:6379/15
+      EVENTFUL_POSTGRES_URL: postgresql://eventful:eventful@localhost:5432/eventful
     strategy:
       matrix:
         python-version: ['3.13', '3.14']
