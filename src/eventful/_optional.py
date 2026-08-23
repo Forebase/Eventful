@@ -1,4 +1,5 @@
 """Helpers for optional dependency boundaries."""
+
 from __future__ import annotations
 
 from importlib import import_module
@@ -23,6 +24,6 @@ def require_optional(component: str, extra: str, package: str) -> ModuleType:
     try:
         return import_module(package)
     except ModuleNotFoundError as exc:
-        if exc.name == package:
+        if exc.name == package.split(".", 1)[0]:
             raise OptionalDependencyError(component, extra, package) from exc
         raise

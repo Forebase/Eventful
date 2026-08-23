@@ -50,8 +50,9 @@ negotiation.
 
 ## Deferred validation
 
-Transport delivery, cancellation, backpressure, reconnect behavior, and ownership
-sharing cannot be validated against the current Redis shell. PostgreSQL durability,
-transactions, and cross-process ordering likewise await a real backend. These
-protocols remain provisional until those integrations pass the same conformance
-model with integration services.
+Redis Pub/Sub now validates publication, consumption, cancellation cleanup,
+serialization, and shared-client ownership against its transport contracts.
+Operational reconnect and load behavior still require longer-running validation.
+PostgreSQL durability, transactions, and cross-process ordering likewise await a
+real backend. These protocols remain provisional until those integrations pass the
+same conformance model with integration services.

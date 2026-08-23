@@ -8,7 +8,7 @@ Eventful 0.2.0 is a pre-alpha foundation for a Python event toolkit. The impleme
 pip install eventful
 ```
 
-Optional integrations are component-specific and experimental:
+Optional integrations are component-specific and provisional:
 
 ```bash
 pip install 'eventful[redis]'
@@ -40,3 +40,5 @@ See `docs/index.md` for the documentation map and `docs/work-register.md` for de
 
 The provisional `JsonCodec` and `InMemoryEventStore` are dependency-free
 conformance references, not production transport or durable-storage integrations.
+`RedisTransport` provides documented live, at-most-once Pub/Sub delivery; it does
+not provide replay or durability.

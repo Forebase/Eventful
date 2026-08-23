@@ -9,3 +9,5 @@
 - Added public-boundary documentation enforcement and core behavior coverage.
 - Refined architectural contracts around explicit async I/O lifecycles.
 - Added JSON codec and in-memory event-store conformance references.
+- Added an asynchronous Redis Pub/Sub transport with explicit at-most-once delivery,
+  endpoint lifecycle, serialization validation, and service-backed integration tests.

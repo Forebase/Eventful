@@ -4,6 +4,7 @@ nav:
   - API: api.md
   - Core Semantics: core-semantics.md
   - Architectural Contracts: contracts.md
+  - Redis Transport: redis.md
   - Quickstart: quickstart.md
   - Work Register: work-register.md
   - Annotation Policy: annotation-policy.md
