@@ -66,9 +66,11 @@ fallback is intentional.
 - An injected `bus=` remains caller-owned by default.
 - A bus created by `bus_factory=` or by the middleware default is adapter-owned.
 - `close_on_shutdown=True` opts an injected bus into adapter ownership.
-- On `lifespan.shutdown.complete`, the adapter awaits `bus.close()` when the owned
-  bus exposes a synchronous or asynchronous close method.
-- Cleanup completes before shutdown success is forwarded to the ASGI server.
+- On `lifespan.shutdown.complete` or `lifespan.shutdown.failed`, the adapter awaits
+  `bus.close()` when the owned bus exposes a synchronous or asynchronous close
+  method.
+- Cleanup completes before the terminal shutdown result is forwarded to the ASGI
+  server, including when terminal lifespan calls overlap.
 - A failed startup (either `lifespan.startup.failed` or an exception escaping the
   lifespan application) also closes an adapter-owned bus. Caller-owned buses remain
   untouched in every failure path.
@@ -98,8 +100,9 @@ middleware instance between event loops.
 
 ## Supported versions
 
-The adapters support FastAPI 0.110 or newer and Starlette 0.37 or newer on Eventful's
-supported Python versions. The compatibility floor is exercised through the public
-ASGI and dependency APIs; CI's normal dependency resolution also exercises current
-framework releases. Major-version compatibility is not promised until separately
-validated.
+The declared dependency floors are FastAPI 0.110 and Starlette 0.37 on Eventful's
+supported Python versions. CI exercises those minor-version ranges through the
+public ASGI and dependency APIs, and a separate matrix leg resolves the latest
+available releases. Versions between the floor and latest tested releases are
+expected to work; compatibility with a future major release is not promised until
+that release is separately validated.

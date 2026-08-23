@@ -63,6 +63,7 @@ class EventfulMiddleware:
             if message["type"] in {
                 "lifespan.startup.failed",
                 "lifespan.shutdown.complete",
+                "lifespan.shutdown.failed",
             }:
                 await self.close()
             await send(message)
@@ -87,14 +88,16 @@ class EventfulMiddleware:
             if self._closed:
                 return
             self._closed = True
-        if not self.close_on_shutdown:
-            return
-        close = getattr(self.bus, "close", None)
-        if close is None:
-            return
-        result = close()
-        if inspect.isawaitable(result):
-            await result
+            if not self.close_on_shutdown:
+                return
+            close = getattr(self.bus, "close", None)
+            if close is None:
+                return
+            result = close()
+            if inspect.isawaitable(result):
+                # Keep the lock until cleanup finishes so a concurrent terminal
+                # lifespan message cannot be forwarded ahead of resource cleanup.
+                await result
 
 
 def request_event_bus(

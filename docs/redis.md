@@ -81,15 +81,56 @@ lazily when explicit coordination is unnecessary.
 
 ## Reconnection and cancellation
 
-The transport relies on redis-py's connection retry and Pub/Sub resubscription
-behavior. Redis client options may be passed as keyword arguments to
-`RedisTransport` and are forwarded to `redis.asyncio.Redis.from_url`. Terminal
-client errors become `TransportError` with the original exception retained as the
-cause. Task cancellation remains `asyncio.CancelledError` and triggers consumer
-cleanup.
+Eventful does **not** implement a retry queue or replay loop. It makes one public
+method call and relies only on retry behavior configured in redis-py:
+
+- `publish()` calls redis-py's `publish()` once. A reconnect/retry completed by the
+  client can make that call succeed; otherwise Eventful raises `TransportError`.
+  Eventful never resends after the call returns or raises, because after a lost
+  response it cannot know whether Redis received the publication.
+- `subscribe()` calls redis-py's `subscribe()` once. An unrecovered connection
+  failure is a `TransportError`; cancellation remains `asyncio.CancelledError` and
+  closes the incomplete Pub/Sub resource.
+- `consume()` lets redis-py reconnect and restore its current Pub/Sub subscriptions
+  while polling. An unrecovered read failure is a `TransportError` and permanently
+  closes that consumer. Start a new consumer to try again.
+- `close()` does not retry failed unsubscribe or close operations. It attempts all
+  consumer closes before surfacing a shutdown `TransportError`, and repeated calls
+  remain safe.
+
+Redis client options may be passed as keyword arguments to `RedisTransport` and
+are forwarded to `redis.asyncio.Redis.from_url`. Original client exceptions are
+retained as causes. Task cancellation is never translated to `TransportError`.
 
 Automatic reconnection does not change the at-most-once delivery model: messages
-sent while disconnected may be lost.
+sent while disconnected may be lost. A successful `publish()` means Redis reported
+the number of live subscribers; it does not mean a consumer processed, persisted,
+or can replay the event. A clean connection reset can be recovered internally by
+redis-py, including resubscription. In the validated default configuration, a hard
+server restart surfaced the broken read as `TransportError`; callers had to create
+a fresh consumer after the server returned. Either outcome leaves an unavoidable
+delivery gap.
+
+## Validated operational limits
+
+Service-backed scenarios exercise forced publisher and subscriber connection
+loss, reconnection after the service becomes available again, cancellation during
+reconnection, duplicate-subscription cleanup, malformed broker messages,
+concurrent bursts, and bounded deterministic shutdown. These checks establish
+lifecycle and error behavior, not a durability guarantee:
+
+- Connection recovery is bounded by redis-py's configured retry policy and the
+  caller's own timeout or cancellation.
+- No event count is asserted across a disconnect or restart boundary. Only events
+  published after subscription readiness is re-established are expected. A hard
+  restart may terminate the old consumer before redis-py's reconnect path runs.
+- Concurrent publishing is safe when callers bound concurrency to the configured
+  redis-py pool. A task fan-out beyond `max_connections` is surfaced as a publish
+  `TransportError`; Eventful supplies no global ordering or unbounded buffering.
+- Malformed data terminates only the affected consumer; it is not skipped or sent
+  to a dead-letter channel.
+- Shutdown is deterministic for responsive Redis connections. A stalled network
+  operation still needs an application-level deadline such as `asyncio.timeout()`.
 
 ## Serialization and validation
 
