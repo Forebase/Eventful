@@ -58,6 +58,12 @@ class FilePersistence:
             self._ensure_open()
             if not isinstance(event, Event):
                 raise StoreError("append requires an Event")
+            if not isinstance(event.type, str):
+                raise StoreError("event type must be a string")
+            if not isinstance(event.metadata, dict):
+                raise StoreError("event metadata must be an object")
+            if not all(isinstance(tag, str) for tag in event.tags):
+                raise StoreError("event tags must contain only strings")
             try:
                 record = json.dumps(
                     {
@@ -72,7 +78,7 @@ class FilePersistence:
                     sort_keys=True,
                 )
                 encoded_size = len(record.encode("utf-8")) + 1
-            except (TypeError, ValueError, UnicodeError) as exc:
+            except (RecursionError, TypeError, ValueError, UnicodeError) as exc:
                 raise StoreError(f"event cannot be serialized as JSON: {exc}") from exc
 
             try:
@@ -98,9 +104,11 @@ class FilePersistence:
             yielded = 0
             try:
                 for path in self._paths_oldest_first():
-                    if not path.exists():
+                    try:
+                        stream = path.open("r", encoding="utf-8", newline="")
+                    except FileNotFoundError:
                         continue
-                    with path.open("r", encoding="utf-8", newline="") as stream:
+                    with stream:
                         for line in stream:
                             line_offset = offset
                             offset += 1

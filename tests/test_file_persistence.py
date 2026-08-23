@@ -104,6 +104,47 @@ def test_serialization_failure_is_store_error(tmp_path) -> None:
         store.append(Event("bad", object()))
 
 
+def test_recursive_serialization_failure_is_store_error(tmp_path, monkeypatch) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+
+    def dumps_beyond_recursion_limit(*args, **kwargs):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(file_persistence.json, "dumps", dumps_beyond_recursion_limit)
+
+    with pytest.raises(StoreError, match="serialized"):
+        store.append(Event("deep", []))
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        Event(1),
+        Event("bad.metadata", metadata=[]),
+        Event("bad.tags", tags={1}),
+    ],
+)
+def test_append_rejects_records_replay_cannot_decode(tmp_path, event) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+
+    with pytest.raises(StoreError):
+        store.append(event)
+
+    assert not (tmp_path / "events.jsonl").exists()
+
+
+def test_replay_filesystem_failure_is_store_error(tmp_path, monkeypatch) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+
+    def inaccessible(*args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(file_persistence.Path, "open", inaccessible)
+
+    with pytest.raises(StoreError, match="replay"):
+        list(store.replay())
+
+
 def test_close_is_idempotent_and_operations_after_close_fail(tmp_path) -> None:
     store = FilePersistence(tmp_path / "events.jsonl")
     store.close()

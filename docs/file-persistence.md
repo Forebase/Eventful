@@ -45,3 +45,6 @@ locking**; use PostgreSQL when multiple processes or hosts write the same stream
 after close raise `StoreError`. Serialization, UTF-8 decoding, file opening,
 reading, writing, rotation, and close failures are also normalized to `StoreError`
 with the original failure retained as `__cause__`.
+Append also raises `StoreError` before writing when the event type is not a string,
+metadata is not an object, or tags contain non-string values, so every successfully
+written record remains replayable by the same schema.
