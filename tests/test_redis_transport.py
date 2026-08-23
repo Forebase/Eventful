@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
+import socket
+import subprocess
+import time
+import uuid
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -12,6 +19,88 @@ from eventful import Event
 from eventful.contracts import Consumer, Publisher, Transport
 from eventful.exceptions import TransportError
 from eventful.transports.redis import RedisTransport
+
+
+class RestartableRedis:
+    """Own a disposable Redis process for a genuine restart boundary test."""
+
+    def __init__(self, executable: str, directory: Path, port: int) -> None:
+        self.executable = executable
+        self.directory = directory
+        self.port = port
+        self.process: subprocess.Popen[bytes] | None = None
+
+    @property
+    def url(self) -> str:
+        """Return this isolated server's connection URL."""
+        return f"redis://127.0.0.1:{self.port}/0"
+
+    def start(self) -> None:
+        """Start Redis and wait until its TCP listener is ready."""
+        self.process = subprocess.Popen(
+            [
+                self.executable,
+                "--port",
+                str(self.port),
+                "--dir",
+                str(self.directory),
+                "--save",
+                "",
+                "--appendonly",
+                "no",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with socket.socket() as connection:
+                if connection.connect_ex(("127.0.0.1", self.port)) == 0:
+                    return
+            time.sleep(0.01)
+        raise RuntimeError("disposable Redis did not start")
+
+    def stop(self) -> None:
+        """Stop Redis without persistence and wait for process collection."""
+        if self.process is not None:
+            self.process.terminate()
+            self.process.wait(timeout=3)
+            self.process = None
+
+
+@pytest.fixture
+def restartable_redis(tmp_path: Path) -> Iterator[RestartableRedis]:
+    """Provide a real restartable server when redis-server is installed."""
+    executable = shutil.which("redis-server")
+    if executable is None:
+        pytest.skip("redis-server executable is not installed")
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+    server = RestartableRedis(executable, tmp_path, port)
+    server.start()
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
+def redis_service_url() -> str:
+    """Return the explicitly configured service URL or skip integration tests."""
+    url = os.getenv("EVENTFUL_REDIS_URL")
+    if url is None:
+        pytest.skip("EVENTFUL_REDIS_URL is not configured")
+    return url
+
+
+def redis_service_transport(**options: Any) -> RedisTransport:
+    """Create an isolated transport against the configured Redis service."""
+    return RedisTransport(
+        redis_service_url(),
+        channel_prefix=f"eventful-tests:{os.getpid()}:{uuid.uuid4().hex}:",
+        poll_timeout=0.02,
+        **options,
+    )
 
 
 class FakePubSub:
@@ -226,14 +315,7 @@ async def test_consumer_cancellation_cleans_up_subscription() -> None:
 @pytest.mark.asyncio
 async def test_real_redis_pubsub_round_trip() -> None:
     """Validate serialization, subscription, publication, and shutdown end to end."""
-    url = os.getenv("EVENTFUL_REDIS_URL")
-    if url is None:
-        pytest.skip("EVENTFUL_REDIS_URL is not configured")
-    prefix = f"eventful-tests:{os.getpid()}:"
-
-    async with RedisTransport(
-        url, channel_prefix=prefix, poll_timeout=0.05
-    ) as transport:
+    async with redis_service_transport() as transport:
         consumer = transport.consumer("integration.created")
         await consumer.subscribe()
         pending = asyncio.create_task(next_event(consumer))
@@ -242,3 +324,169 @@ async def test_real_redis_pubsub_round_trip() -> None:
         await transport.publisher().publish(event)
 
         assert await asyncio.wait_for(pending, timeout=3) == event
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_connection_loss_during_publish_is_surfaced() -> None:
+    """Surface an unconfigured publish retry without implying safe replay."""
+    transport = redis_service_transport()
+    publisher = transport.publisher()
+    original = transport.client.publish
+
+    async def lose_connection(channel: str, payload: bytes) -> int:
+        del channel, payload
+        await transport.client.connection_pool.disconnect()
+        raise ConnectionError("forced publisher connection loss")
+
+    transport.client.publish = lose_connection
+    with pytest.raises(TransportError, match="publish failed") as raised:
+        await publisher.publish(Event("publish.loss"))
+    assert isinstance(raised.value.__cause__, ConnectionError)
+
+    transport.client.publish = original
+    await publisher.publish(Event("publish.recovered"))
+    await transport.close()
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_subscription_reconnects_after_connection_restart() -> None:
+    """Restore a subscription after its server connection is torn down."""
+    async with redis_service_transport() as transport:
+        consumer = transport.consumer("restart")
+        await consumer.subscribe()
+        assert consumer._pubsub is not None
+        await consumer._pubsub.connection.disconnect()
+
+        pending = asyncio.create_task(next_event(consumer))
+        # A poll drives redis-py's reconnect and resubscription. Events in the gap
+        # are intentionally not counted because Pub/Sub remains at-most-once.
+        await asyncio.sleep(0.1)
+        expected = Event("restart", {"after": True})
+        await transport.publisher().publish(expected)
+        assert await asyncio.wait_for(pending, timeout=3) == expected
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_consumer_recovers_after_server_restart(
+    restartable_redis: RestartableRedis,
+) -> None:
+    """Surface the broken read, then recover with a fresh post-restart consumer."""
+    async with RedisTransport(
+        restartable_redis.url,
+        channel_prefix=f"restart:{uuid.uuid4().hex}:",
+        poll_timeout=0.02,
+    ) as transport:
+        consumer = transport.consumer("server")
+        await consumer.subscribe()
+        restartable_redis.stop()
+        failed = asyncio.create_task(next_event(consumer))
+        with pytest.raises(TransportError, match="consume failed"):
+            await asyncio.wait_for(failed, timeout=3)
+        restartable_redis.start()
+        replacement = transport.consumer("server")
+        await replacement.subscribe()
+        pending = asyncio.create_task(next_event(replacement))
+        expected = Event("server", {"after_restart": True})
+        await transport.publisher().publish(expected)
+        assert await asyncio.wait_for(pending, timeout=3) == expected
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_cancellation_while_reconnecting_cleans_up() -> None:
+    """Propagate cancellation and leave no consumer after a disconnected poll."""
+    async with redis_service_transport() as transport:
+        consumer = transport.consumer("cancel.reconnect")
+        await consumer.subscribe()
+        assert consumer._pubsub is not None
+        await consumer._pubsub.connection.disconnect()
+        iterator = consumer.consume()
+        pending = asyncio.create_task(anext(iterator))
+        await asyncio.sleep(0)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert consumer not in transport._consumers
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_duplicate_subscription_cleanup() -> None:
+    """Keep one server subscription and remove it on idempotent close."""
+    async with redis_service_transport() as transport:
+        consumer = transport.consumer("duplicate")
+        await asyncio.gather(consumer.subscribe(), consumer.subscribe())
+        channel = transport.channel("duplicate")
+        assert await transport.client.pubsub_numsub(channel) == [(channel.encode(), 1)]
+        await consumer.close()
+        await consumer.close()
+        assert await transport.client.pubsub_numsub(channel) == [(channel.encode(), 0)]
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_malformed_message_is_surfaced() -> None:
+    """Reject malformed service data and close the affected subscription."""
+    async with redis_service_transport() as transport:
+        consumer = transport.consumer("malformed")
+        await consumer.subscribe()
+        iterator = consumer.consume()
+        pending = asyncio.create_task(anext(iterator))
+        await transport.client.publish(transport.channel("malformed"), b"not-json")
+        with pytest.raises(TransportError, match="invalid"):
+            await asyncio.wait_for(pending, timeout=3)
+        assert consumer not in transport._consumers
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_sustained_concurrent_publishing() -> None:
+    """Deliver a sustained concurrent burst once subscription readiness is known."""
+    async with redis_service_transport() as transport:
+        consumer = transport.consumer("burst")
+        await consumer.subscribe()
+        total = 250
+
+        async def receive() -> set[int]:
+            received: set[int] = set()
+            async for event in consumer.consume():
+                received.add(event.payload["sequence"])
+                if len(received) == total:
+                    return received
+            return received
+
+        pending = asyncio.create_task(receive())
+        queue = asyncio.Queue[int]()
+        for index in range(total):
+            queue.put_nowait(index)
+
+        async def publish_worker() -> None:
+            while not queue.empty():
+                index = queue.get_nowait()
+                await transport.publisher().publish(
+                    Event("burst", {"sequence": index})
+                )
+
+        # Sustained concurrency is intentionally bounded: redis-py's default
+        # connection pool rejects an unbounded task fan-out at its connection cap.
+        await asyncio.gather(*(publish_worker() for _ in range(10)))
+        assert await asyncio.wait_for(pending, timeout=10) == set(range(total))
+
+
+@pytest.mark.redis_integration
+@pytest.mark.asyncio
+async def test_real_redis_shutdown_is_deterministic() -> None:
+    """Bound shutdown with active consumers and reject all later operations."""
+    transport = redis_service_transport()
+    consumers = [transport.consumer(f"shutdown.{index}") for index in range(20)]
+    await asyncio.gather(*(consumer.subscribe() for consumer in consumers))
+    async with asyncio.timeout(3):
+        await transport.close()
+        await transport.close()
+    assert not transport._consumers
+    assert all(consumer._closed for consumer in consumers)
+    with pytest.raises(TransportError, match="closed"):
+        await transport.publisher().publish(Event("shutdown"))

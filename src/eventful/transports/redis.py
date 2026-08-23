@@ -3,13 +3,15 @@
 Events publish to channels derived from their event type. Redis Pub/Sub provides
 live, at-most-once fan-out: it has no replay, acknowledgement, or durability. The
 transport owns clients it creates, while injected clients remain caller-owned.
-redis-py's connection retry and Pub/Sub resubscription behavior handle transient
-reconnections; terminal client errors propagate to the consumer.
+redis-py's configured connection retry and Pub/Sub resubscription behavior may
+handle transient reconnects. Eventful adds no retry loop: failures left by the
+client are surfaced, and publications are never replayed.
 """
 
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -29,7 +31,7 @@ class RedisPublisher:
         self._closed = False
 
     async def publish(self, event: Event) -> None:
-        """Publish one event to its prefixed event-type channel."""
+        """Publish once, surfacing any failure not retried by redis-py."""
         if self._closed:
             raise TransportError("Redis publisher is closed")
         self._transport._ensure_open()
@@ -72,11 +74,11 @@ class RedisConsumer:
         return self._topic
 
     async def subscribe(self) -> None:
-        """Eagerly establish the subscription when readiness must be explicit."""
+        """Subscribe once, surfacing any failure not recovered by redis-py."""
         await self._subscribe()
 
     async def consume(self) -> AsyncIterator[Event]:
-        """Yield live events sequentially until cancellation, failure, or close."""
+        """Yield live events, surfacing unrecovered reads and invalid payloads."""
         async with self._lifecycle_lock:
             if self._closed:
                 raise TransportError("Redis consumer is closed")
@@ -121,7 +123,14 @@ class RedisConsumer:
         finally:
             async with self._lifecycle_lock:
                 self._consuming = False
-            await self.close()
+            active_failure = sys.exception()
+            try:
+                await self.close()
+            except TransportError:
+                # Cleanup must not replace cancellation, malformed-message, or
+                # connection errors already escaping the iterator.
+                if active_failure is None:
+                    raise
 
     async def close(self) -> None:
         """Unsubscribe and close the Pub/Sub resource idempotently."""
@@ -131,13 +140,20 @@ class RedisConsumer:
             self._closed = True
             pubsub, self._pubsub = self._pubsub, None
         if pubsub is not None:
+            failure: BaseException | None = None
             try:
                 await pubsub.unsubscribe(self._transport.channel(self.topic))
+            except Exception as exc:
+                failure = exc
+            try:
                 await pubsub.aclose()
             except Exception as exc:
+                failure = failure or exc
+            if failure is not None:
+                self._transport._discard_consumer(self)
                 raise TransportError(
                     f"Redis consumer close failed for topic {self.topic!r}"
-                ) from exc
+                ) from failure
         self._transport._discard_consumer(self)
 
     async def _subscribe(self) -> Any:
@@ -151,8 +167,13 @@ class RedisConsumer:
             pubsub = self._transport.client.pubsub()
             try:
                 await pubsub.subscribe(self._transport.channel(self.topic))
-            except Exception as exc:
-                await pubsub.aclose()
+            except BaseException as exc:
+                # Cancellation is deliberately included: a connection attempt may
+                # be cancelled while redis-py is reconnecting, but its Pub/Sub
+                # object must not retain a duplicate server-side subscription.
+                await asyncio.shield(pubsub.aclose())
+                if isinstance(exc, asyncio.CancelledError):
+                    raise
                 raise TransportError(
                     f"Redis subscribe failed for topic {self.topic!r}"
                 ) from exc
