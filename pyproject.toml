@@ -27,9 +27,9 @@ postgres = ["asyncpg>=0.29"]
 file = []
 fastapi = ["fastapi>=0.110"]
 starlette = ["starlette>=0.37"]
-test = ["build>=1.2", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5"]
+test = ["asyncpg>=0.29", "build>=1.2", "fastapi>=0.110", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "redis>=5", "starlette>=0.37"]
 docs = ["mkdocs>=1.6"]
-dev = ["build>=1.2", "mkdocs>=1.6", "mypy>=1.10", "pre-commit>=3.7", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "ruff>=0.5"]
+dev = ["asyncpg>=0.29", "build>=1.2", "fastapi>=0.110", "mkdocs>=1.6", "mypy>=1.10", "pre-commit>=3.7", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "redis>=5", "ruff>=0.5", "starlette>=0.37"]
 all = ["asyncpg>=0.29", "fastapi>=0.110", "redis>=5", "starlette>=0.37"]
 
 [tool.setuptools.dynamic]
@@ -58,9 +58,19 @@ testpaths = ["tests"]
 addopts = "--strict-config --strict-markers --tb=short -ra"
 asyncio_mode = "auto"
 filterwarnings = ["error", "ignore:.*deprecated.*:DeprecationWarning"]
+markers = [
+  "postgres_integration: requires PostgreSQL configured by EVENTFUL_POSTGRES_URL",
+  "redis_integration: requires Redis configured by EVENTFUL_REDIS_URL",
+]
 
 [[tool.mypy.overrides]]
-module = "eventful.*"
+module = [
+  "eventful.adapters.starlette",
+  "eventful.persistence.file_persistence",
+  "eventful.utilities.debounce",
+  "eventful.utilities.logging_handler",
+  "eventful.utilities.rate_limit",
+]
 ignore_errors = true
 
 [[tool.mypy.overrides]]

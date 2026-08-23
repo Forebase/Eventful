@@ -2,6 +2,14 @@ site_name: Eventful
 nav:
   - Home: index.md
   - API: api.md
+  - Core Semantics: core-semantics.md
+  - Architectural Contracts: contracts.md
+  - Redis Transport: redis.md
+  - PostgreSQL Persistence: postgres.md
+  - Framework Adapters: frameworks.md
+  - Extension Points: extensions.md
   - Quickstart: quickstart.md
   - Work Register: work-register.md
   - Annotation Policy: annotation-policy.md
+  - Architecture decisions:
+      - Foundation topology: adr/0001-foundation-topology.md

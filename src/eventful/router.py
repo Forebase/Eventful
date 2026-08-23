@@ -4,8 +4,6 @@ Topic-based event routing with wildcard support.
 
 from __future__ import annotations
 
-from typing import List, Set
-
 from eventful.event import Event
 from eventful.listener import Listener
 
@@ -17,9 +15,9 @@ class Router:
     Supports hierarchical topics with * (single-level) and ** (multi-level) wildcards.
     """
 
-    def __init__(self):
-        self._listeners: dict[str, List[Listener]] = {}
-        self._wildcard_listeners: List[tuple[str, Listener]] = []
+    def __init__(self) -> None:
+        self._listeners: dict[str, list[Listener]] = {}
+        self._wildcard_listeners: list[tuple[str, Listener]] = []
 
     def add_listener(self, topic: str, listener: Listener) -> None:
         """
@@ -59,7 +57,7 @@ class Router:
                 if not self._listeners[topic]:
                     del self._listeners[topic]
 
-    def get_listeners(self, event: Event) -> List[Listener]:
+    def get_listeners(self, event: Event) -> list[Listener]:
         """
         Get all listeners that match the given event.
 

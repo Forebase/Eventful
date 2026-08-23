@@ -10,3 +10,8 @@ repos:
         entry: python scripts/check_annotations.py
         language: system
         pass_filenames: false
+      - id: public-docstrings
+        name: public boundary docstrings
+        entry: python scripts/check_docstrings.py
+        language: system
+        pass_filenames: false
