@@ -1,193 +1,226 @@
-"""
-File-based event persistence with rotation.
-"""
+"""Deterministic JSON Lines event persistence with bounded rotation."""
 
 from __future__ import annotations
 
 import json
 import logging
-import os
-import time
-from typing import Any, Iterator, Optional, Union
+import threading
+from collections.abc import Iterator
 from pathlib import Path
-
-try:
-    import orjson
-except ImportError:
-    orjson = None
+from typing import TextIO
 
 from eventful.event import Event
+from eventful.exceptions import StoreError
+
+_EVENT_FIELDS = {"metadata", "payload", "tags", "type"}
+_LEGACY_EVENT_FIELDS = _EVENT_FIELDS | {"timestamp"}
 
 
 class FilePersistence:
-    """
-    File-based event persistence with log rotation.
+    """Persist events as dependency-free, UTF-8 JSON Lines records.
 
-    Uses MessagePack via orjson if available, falls back to JSON.
+    Physical line numbers are replay offsets. Corrupt records consume an offset
+    but are skipped. This store is thread-safe within one process; it does not
+    coordinate access by multiple processes.
     """
 
     def __init__(
-            self,
-            file_path: Union[str, Path],
-            max_size: int = 10 * 1024 * 1024,
-            backup_count: int = 5
-    ):
-        """
-        Initialize file persistence.
+        self,
+        file_path: str | Path,
+        max_size: int = 10 * 1024 * 1024,
+        backup_count: int = 5,
+    ) -> None:
+        """Create a store, validating its rotation configuration."""
+        if isinstance(max_size, bool) or not isinstance(max_size, int) or max_size < 1:
+            raise ValueError("max_size must be a positive integer")
+        if (
+            isinstance(backup_count, bool)
+            or not isinstance(backup_count, int)
+            or backup_count < 1
+        ):
+            raise ValueError("backup_count must be a positive integer")
 
-        Parameters
-        ----------
-        file_path : str | Path
-            Path to the event log file.
-        max_size : int, optional
-            Maximum file size in bytes before rotation.
-        backup_count : int, optional
-            Number of backup files to keep.
-        """
         self.file_path = Path(file_path)
         self.max_size = max_size
         self.backup_count = backup_count
-        self._file = None
+        self._file: TextIO | None = None
         self._current_size = 0
-        self._lock = None  # Would use threading.Lock for thread safety
-
-        # Create directory if needed
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._closed = False
+        try:
+            self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise StoreError(f"cannot create event log directory: {exc}") from exc
 
     def append(self, event: Event) -> None:
-        """
-        Append an event to the file.
+        """Append one event, or raise :class:`~eventful.exceptions.StoreError`."""
+        with self._lock:
+            self._ensure_open()
+            if not isinstance(event, Event):
+                raise StoreError("append requires an Event")
+            if not isinstance(event.type, str):
+                raise StoreError("event type must be a string")
+            if not isinstance(event.metadata, dict):
+                raise StoreError("event metadata must be an object")
+            if not all(isinstance(tag, str) for tag in event.tags):
+                raise StoreError("event tags must contain only strings")
+            try:
+                record = json.dumps(
+                    {
+                        "metadata": event.metadata,
+                        "payload": event.payload,
+                        "tags": sorted(event.tags),
+                        "type": event.type,
+                    },
+                    ensure_ascii=False,
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                encoded_size = len(record.encode("utf-8")) + 1
+            except (RecursionError, TypeError, ValueError, UnicodeError) as exc:
+                raise StoreError(f"event cannot be serialized as JSON: {exc}") from exc
 
-        Parameters
-        ----------
-        event : Event
-            Event to append.
-        """
-        if self._file is None:
-            mode = 'ab' if orjson else 'a'
-            self._file = open(self.file_path, mode)
-            self._current_size = self.file_path.stat().st_size if self.file_path.exists() else 0
-
-        event_data = {
-            'type': event.type,
-            'payload': event.payload,
-            'metadata': event.metadata,
-            'tags': list(event.tags),
-            'timestamp': time.time()
-        }
-
-        if orjson:
-            data = orjson.dumps(event_data)
-            self._file.write(data + b'\n')
-        else:
-            data = json.dumps(event_data) + '\n'
-            self._file.write(data)
-
-        self._current_size += len(data)
-        self._file.flush()
-
-        # Rotate if needed
-        if self._current_size >= self.max_size:
-            self._rotate()
-
-    def _rotate(self) -> None:
-        """Rotate the log file when it reaches max size."""
-        if self._file:
-            self._file.close()
-            self._file = None
-
-        if not self.file_path.exists():
-            return
-
-        # Rotate existing backup files
-        for i in range(self.backup_count, 0, -1):
-            old_path = self.file_path.with_suffix(f".{i}")
-            if old_path.exists():
-                if i == self.backup_count:
-                    old_path.unlink()  # Remove oldest backup
-                else:
-                    new_path = self.file_path.with_suffix(f".{i + 1}")
-                    old_path.rename(new_path)
-
-        # Move current file to backup
-        backup_path = self.file_path.with_suffix(".1")
-        self.file_path.rename(backup_path)
-
-        self._current_size = 0
-        mode = 'ab' if orjson else 'a'
-        self._file = open(self.file_path, mode)
+            try:
+                self._open_for_append()
+                assert self._file is not None
+                self._file.write(record + "\n")
+                self._file.flush()
+                self._current_size += encoded_size
+                if self._current_size >= self.max_size:
+                    self._rotate()
+            except (OSError, ValueError) as exc:
+                raise StoreError(f"cannot append to event log: {exc}") from exc
 
     def replay(self, start_id: int = 0, batch: int = 1000) -> Iterator[Event]:
-        """
-        Replay events from the file.
+        """Yield at most ``batch`` valid events from physical offset ``start_id``."""
+        self._validate_replay_arguments(start_id, batch)
+        return self._replay(start_id, batch)
 
-        Parameters
-        ----------
-        start_id : int, optional
-            Starting offset (not actual IDs, since file doesn't have IDs).
-        batch : int, optional
-            Batch size for iteration.
-
-        Yields
-        ------
-        Event
-            Events in chronological order.
-        """
-        # File persistence doesn't have IDs, so we use line numbers as pseudo-IDs
-        current_line = 0
-        batch_count = 0
-
-        if not self.file_path.exists():
-            return
-
-        # Read all backup files in order
-        files_to_read = [self.file_path]
-        for i in range(1, self.backup_count + 1):
-            backup_file = self.file_path.with_suffix(f".{i}")
-            if backup_file.exists():
-                files_to_read.append(backup_file)
-
-        # Read files from oldest to newest
-        for file_path in reversed(files_to_read):
-            mode = 'rb' if orjson else 'r'
-            with open(file_path, mode) as f:
-                for line in f:
-                    if current_line < start_id:
-                        current_line += 1
-                        continue
-
+    def _replay(self, start_id: int, batch: int) -> Iterator[Event]:
+        with self._lock:
+            self._ensure_open()
+            offset = 0
+            yielded = 0
+            try:
+                for path in self._paths_oldest_first():
                     try:
-                        if orjson:
-                            event_data = orjson.loads(line)
-                        else:
-                            event_data = json.loads(line)
-
-                        event = Event(
-                            type=event_data['type'],
-                            payload=event_data['payload'],
-                            metadata=event_data['metadata'],
-                            tags=set(event_data['tags'])
-                        )
-                        yield event
-
-                        batch_count += 1
-                        if batch_count >= batch:
-                            return
-
-                    except (json.JSONDecodeError, KeyError) as e:
-                        logging.warning(f"Failed to parse event from file: {e}")
+                        stream = path.open("r", encoding="utf-8", newline="")
+                    except FileNotFoundError:
                         continue
-
-                    current_line += 1
+                    with stream:
+                        for line in stream:
+                            line_offset = offset
+                            offset += 1
+                            if line_offset < start_id:
+                                continue
+                            try:
+                                data = json.loads(
+                                    line,
+                                    parse_constant=lambda value: (_ for _ in ()).throw(
+                                        ValueError(f"invalid JSON constant {value}")
+                                    ),
+                                )
+                                if not isinstance(data, dict) or set(data) not in (
+                                    _EVENT_FIELDS,
+                                    _LEGACY_EVENT_FIELDS,
+                                ):
+                                    raise ValueError("record contains unsupported event fields")
+                                if not isinstance(data["type"], str):
+                                    raise ValueError("event type must be a string")
+                                if not isinstance(data["metadata"], dict):
+                                    raise ValueError("event metadata must be an object")
+                                if not isinstance(data["tags"], list) or not all(
+                                    isinstance(tag, str) for tag in data["tags"]
+                                ):
+                                    raise ValueError("event tags must be a string array")
+                                event = Event(
+                                    type=data["type"],
+                                    payload=data["payload"],
+                                    metadata=data["metadata"],
+                                    tags=set(data["tags"]),
+                                )
+                            except (
+                                json.JSONDecodeError,
+                                KeyError,
+                                RecursionError,
+                                TypeError,
+                                ValueError,
+                            ) as exc:
+                                logging.getLogger(__name__).warning(
+                                    "Skipping malformed event record at offset %d: %s",
+                                    line_offset,
+                                    exc,
+                                )
+                                continue
+                            yield event
+                            yielded += 1
+                            if yielded >= batch:
+                                return
+            except (OSError, UnicodeError) as exc:
+                raise StoreError(f"cannot replay event log: {exc}") from exc
 
     def close(self) -> None:
-        """Close the file handle."""
-        if self._file:
+        """Permanently close the store; repeated calls are harmless."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            if self._file is not None:
+                try:
+                    self._file.close()
+                except OSError as exc:
+                    raise StoreError(f"cannot close event log: {exc}") from exc
+                finally:
+                    self._file = None
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise StoreError("file persistence is closed")
+
+    def _open_for_append(self) -> None:
+        if self._file is None:
+            self._file = self.file_path.open("a", encoding="utf-8", newline="\n")
+            self._current_size = self.file_path.stat().st_size
+
+    def _backup_path(self, number: int) -> Path:
+        return self.file_path.with_suffix(f".{number}")
+
+    def _paths_oldest_first(self) -> list[Path]:
+        return [
+            *(self._backup_path(i) for i in range(self.backup_count, 0, -1)),
+            self.file_path,
+        ]
+
+    def _rotate(self) -> None:
+        if self._file is not None:
             self._file.close()
             self._file = None
+        oldest = self._backup_path(self.backup_count)
+        if oldest.exists():
+            oldest.unlink()
+        for number in range(self.backup_count - 1, 0, -1):
+            source = self._backup_path(number)
+            if source.exists():
+                source.replace(self._backup_path(number + 1))
+        if self.file_path.exists():
+            self.file_path.replace(self._backup_path(1))
+        self._current_size = 0
 
-    def __enter__(self):
-        return self
+    @staticmethod
+    def _validate_replay_arguments(start_id: int, batch: int) -> None:
+        if isinstance(start_id, bool) or not isinstance(start_id, int) or start_id < 0:
+            raise ValueError("start_id must be a non-negative integer")
+        if isinstance(batch, bool) or not isinstance(batch, int) or batch < 1:
+            raise ValueError("batch must be a positive integer")
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __enter__(self) -> FilePersistence:
+        with self._lock:
+            self._ensure_open()
+            return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         self.close()
+
+
+__all__ = ["FilePersistence"]

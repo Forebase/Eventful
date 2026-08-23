@@ -1,0 +1,165 @@
+"""Behavioral tests for the dependency-free file persistence backend."""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+
+import pytest
+
+from eventful import Event
+from eventful.exceptions import StoreError
+from eventful.persistence import FilePersistence
+from eventful.persistence import file_persistence
+
+
+def test_round_trip_is_utf8_and_deterministic(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    store = FilePersistence(path)
+    event = Event("café.created", {"name": "Zoë"}, {"z": 1}, {"b", "a"})
+
+    store.append(event)
+
+    assert list(store.replay()) == [event]
+    store.close()
+    assert path.read_text(encoding="utf-8") == (
+        '{"metadata":{"z":1},"payload":{"name":"Zoë"},'
+        '"tags":["a","b"],"type":"café.created"}\n'
+    )
+
+
+def test_rotation_replays_oldest_to_newest(tmp_path) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl", max_size=1, backup_count=3)
+    for number in range(4):
+        store.append(Event("number", number))
+
+    assert [event.payload for event in store.replay()] == [1, 2, 3]
+
+
+def test_replay_offset_counts_malformed_records_and_batch_counts_events(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        '{"metadata":{},"payload":0,"tags":[],"type":"number"}\n'
+        "not-json\n"
+        '{"metadata":{},"payload":2,"tags":[],"type":"number"}\n'
+        '{"metadata":{},"payload":3,"tags":[],"type":"number"}\n',
+        encoding="utf-8",
+    )
+    store = FilePersistence(path)
+
+    assert [event.payload for event in store.replay(start_id=1, batch=1)] == [2]
+    assert [event.payload for event in store.replay(start_id=2, batch=2)] == [2, 3]
+
+
+def test_replay_accepts_legacy_timestamp_field(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        '{"type":"legacy","payload":1,"metadata":{},"tags":[],"timestamp":1.5}\n',
+        encoding="utf-8",
+    )
+
+    assert list(FilePersistence(path).replay()) == [Event("legacy", 1)]
+
+
+def test_replay_skips_record_beyond_json_recursion_limit(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        '{"metadata":{},"payload":0,"tags":[],"type":"deep"}\n'
+        '{"metadata":{},"payload":1,"tags":[],"type":"valid"}\n',
+        encoding="utf-8",
+    )
+    json_loads = file_persistence.json.loads
+
+    def loads_with_recursion_limit(record, **kwargs):
+        if '"type":"deep"' in record:
+            raise RecursionError("maximum recursion depth exceeded")
+        return json_loads(record, **kwargs)
+
+    monkeypatch.setattr(file_persistence.json, "loads", loads_with_recursion_limit)
+
+    assert list(FilePersistence(path).replay()) == [Event("valid", 1)]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"max_size": 0}, "max_size"),
+        ({"backup_count": 0}, "backup_count"),
+    ],
+)
+def test_invalid_configuration(tmp_path, kwargs, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        FilePersistence(tmp_path / "events.jsonl", **kwargs)
+
+
+@pytest.mark.parametrize(("start_id", "batch"), [(-1, 1), (0, 0), (True, 1)])
+def test_invalid_replay_arguments(tmp_path, start_id, batch) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+    with pytest.raises(ValueError):
+        store.replay(start_id=start_id, batch=batch)
+
+
+def test_serialization_failure_is_store_error(tmp_path) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+    with pytest.raises(StoreError, match="serialized"):
+        store.append(Event("bad", object()))
+
+
+def test_recursive_serialization_failure_is_store_error(tmp_path, monkeypatch) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+
+    def dumps_beyond_recursion_limit(*args, **kwargs):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(file_persistence.json, "dumps", dumps_beyond_recursion_limit)
+
+    with pytest.raises(StoreError, match="serialized"):
+        store.append(Event("deep", []))
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        Event(1),
+        Event("bad.metadata", metadata=[]),
+        Event("bad.tags", tags={1}),
+    ],
+)
+def test_append_rejects_records_replay_cannot_decode(tmp_path, event) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+
+    with pytest.raises(StoreError):
+        store.append(event)
+
+    assert not (tmp_path / "events.jsonl").exists()
+
+
+def test_replay_filesystem_failure_is_store_error(tmp_path, monkeypatch) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+
+    def inaccessible(*args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(file_persistence.Path, "open", inaccessible)
+
+    with pytest.raises(StoreError, match="replay"):
+        list(store.replay())
+
+
+def test_close_is_idempotent_and_operations_after_close_fail(tmp_path) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+    store.close()
+    store.close()
+
+    with pytest.raises(StoreError, match="closed"):
+        store.append(Event("late"))
+    with pytest.raises(StoreError, match="closed"):
+        list(store.replay())
+
+
+def test_concurrent_append_keeps_complete_records(tmp_path) -> None:
+    store = FilePersistence(tmp_path / "events.jsonl")
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(lambda number: store.append(Event("number", number)), range(100)))
+
+    assert sorted(event.payload for event in store.replay()) == list(range(100))
+    store.close()

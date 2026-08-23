@@ -1,7 +1,8 @@
-"""Persistence namespace for file and PostgreSQL event stores.
+"""Persistence namespace for provisional file and PostgreSQL event stores.
 
-PostgreSQL is an optional durable backend; importing this namespace does not create
-connections or require asyncpg until `PostgresPersistence` is instantiated.
+The file backend is dependency-free. PostgreSQL is optional; importing this
+namespace does not create connections or require asyncpg until
+`PostgresPersistence` is instantiated.
 """
 
 from __future__ import annotations
