@@ -126,7 +126,14 @@ restores logging. Schema validation happens before listener selection and raises
 `SchemaValidationError`. Observability failures are logged and isolated.
 
 Calling `event.stop_propagation()` stops later listeners when
-`EventfulConfig.propagation_enabled` is true. Nested emissions are depth-first.
+`EventfulConfig.propagation_enabled` is true. A listener can equivalently call
+the root-exported `stop_propagation()` helper, which raises `StopPropagation` as
+a control-flow signal. The stopping listener contributes no result because it
+does not return; the signal is not reported to the error handler, failure log,
+or failure observability. When `propagation_enabled` is false, both forms of
+propagation control are disabled: `Event.stop_propagation()` state is ignored,
+and `StopPropagation` is consumed while dispatch continues with later listeners.
+Nested emissions are depth-first.
 See [core dispatch semantics](core-semantics.md) for the normative behavior table
 and [cross-cutting extension points](extensions.md) for ordering details.
 

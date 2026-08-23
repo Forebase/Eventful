@@ -5,6 +5,7 @@ Tests for event bus.
 import pytest
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier, Lock
+from eventful import stop_propagation
 from eventful.bus import EventBus, InMemoryBus
 from eventful.config import EventfulConfig
 from eventful.event import Event
@@ -129,6 +130,53 @@ class TestEventBus:
         bus.emit_sync(Event(type="test.event"))
 
         assert calls == ["stop", "continued"]
+
+    def test_stop_propagation_helper_stops_without_listener_failure(self, caplog):
+        bus = EventBus()
+        calls = []
+
+        def stopping_listener(event):
+            calls.append("stop")
+            stop_propagation()
+
+        bus.register("test.event", stopping_listener)
+        bus.register("test.event", lambda event: calls.append("continued"))
+
+        results = bus.emit_sync(Event(type="test.event"))
+
+        assert calls == ["stop"]
+        assert results == []
+        assert "Error in listener" not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_async_stop_propagation_helper_stops_without_listener_failure(
+        self, caplog
+    ):
+        bus = EventBus()
+        calls = []
+
+        async def stopping_listener(event):
+            calls.append("stop")
+            stop_propagation()
+
+        bus.register("test.event", stopping_listener)
+        bus.register("test.event", lambda event: calls.append("continued"))
+
+        results = await bus.emit_async(Event(type="test.event"))
+
+        assert calls == ["stop"]
+        assert results == []
+        assert "Error in listener" not in caplog.text
+
+    def test_stop_propagation_helper_is_ignored_when_propagation_is_disabled(self):
+        bus = EventBus(EventfulConfig(propagation_enabled=False))
+        calls = []
+
+        bus.register("test.event", lambda event: stop_propagation())
+        bus.register("test.event", lambda event: calls.append("continued"))
+
+        assert bus.emit_sync(Event(type="test.event")) == [None]
+        assert calls == ["continued"]
 
     def test_listener_failures_log_and_dispatch_continues(self, caplog):
         bus = EventBus()
