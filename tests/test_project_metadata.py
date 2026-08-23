@@ -13,6 +13,15 @@ def test_dev_extra_includes_docs_build_tooling() -> None:
     assert any(dependency.startswith("mkdocs") for dependency in dev_dependencies)
 
 
+def test_test_requirements_install_the_test_extra() -> None:
+    """IDE-friendly requirements must delegate to canonical project metadata."""
+    requirements = Path("requirements-test.txt").read_text().splitlines()
+
+    entries = [line.strip() for line in requirements if not line.startswith("#")]
+
+    assert entries == ["-e .[test]"]
+
+
 def test_environment_configuration_converts_declared_types(monkeypatch) -> None:
     monkeypatch.setenv("EVENTFUL_ENABLE_PRIORITIES", "no")
     monkeypatch.setenv("EVENTFUL_FILE_MAX_SIZE", "2048")
