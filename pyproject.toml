@@ -60,7 +60,13 @@ asyncio_mode = "auto"
 filterwarnings = ["error", "ignore:.*deprecated.*:DeprecationWarning"]
 
 [[tool.mypy.overrides]]
-module = "eventful.*"
+module = [
+  "eventful.adapters.starlette",
+  "eventful.persistence.file_persistence",
+  "eventful.utilities.debounce",
+  "eventful.utilities.logging_handler",
+  "eventful.utilities.rate_limit",
+]
 ignore_errors = true
 
 [[tool.mypy.overrides]]

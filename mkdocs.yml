@@ -5,3 +5,5 @@ nav:
   - Quickstart: quickstart.md
   - Work Register: work-register.md
   - Annotation Policy: annotation-policy.md
+  - Architecture decisions:
+      - Foundation topology: adr/0001-foundation-topology.md

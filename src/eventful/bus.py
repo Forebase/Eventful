@@ -43,9 +43,14 @@ class EventBus:
         )
         self._listeners: dict[str, List[Listener]] = defaultdict(list)
         self._lock = RLock()
-        self._error_handler: Optional[Callable[[BaseException, Event, Callable], None]] = None
+        self._error_handler: Optional[
+            Callable[[BaseException, Event, Callable[..., Any]], None]
+        ] = None
 
-    def set_error_handler(self, handler: Callable[[BaseException, Event, Callable], None]) -> None:
+    def set_error_handler(
+        self,
+        handler: Callable[[BaseException, Event, Callable[..., Any]], None],
+    ) -> None:
         """
         Set custom error handler for listener exceptions.
 
@@ -59,7 +64,7 @@ class EventBus:
     def register(
             self,
             topic: str,
-            listener: Callable,
+            listener: Callable[[Event], Any],
             priority: int = 0,
             tags: Iterable[str] = (),
             filter_fn: Optional[Callable[[Event], bool]] = None,
@@ -97,7 +102,7 @@ class EventBus:
             self.router.add_listener(topic, listener_obj)
 
 
-    def unregister(self, topic: str, listener: Callable) -> bool:
+    def unregister(self, topic: str, listener: Callable[[Event], Any]) -> bool:
         """
         Unregister a listener from a topic.
 
@@ -131,7 +136,9 @@ class EventBus:
 
             return False
 
-    def emit(self, event: Event | dict | Any, *, async_: bool | None = None) -> Any:
+    def emit(
+        self, event: Event | dict[str, Any] | Any, *, async_: bool | None = None
+    ) -> Any:
         """
         Emit an event to all matching listeners.
 
@@ -233,10 +240,12 @@ class InMemoryBus(EventBus):
 
     def __init__(self, config: EventfulConfig | None = None):
         super().__init__(config)
-        self._event_queue = deque()
+        self._event_queue: deque[tuple[Event, bool | None]] = deque()
         self._processing = False
 
-    def emit(self, event: Event | dict | Any, *, async_: bool | None = None) -> Any:
+    def emit(
+        self, event: Event | dict[str, Any] | Any, *, async_: bool | None = None
+    ) -> Any:
         """
         Emit event with optional queueing for thread safety.
         """

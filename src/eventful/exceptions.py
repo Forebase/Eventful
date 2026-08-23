@@ -1,6 +1,6 @@
 """Shared exception hierarchy for Eventful."""
 from __future__ import annotations
-from ._optional import OptionalDependencyError
+from ._optional import OptionalDependencyError as OptionalDependencyError
 
 class EventfulError(Exception):
     """Base class for Eventful errors."""

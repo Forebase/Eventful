@@ -5,8 +5,8 @@ Configuration management for eventful.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field, fields
+from typing import Any, get_type_hints
 
 
 @dataclass
@@ -41,7 +41,7 @@ class EventfulConfig:
     max_queue_size: int = 10000
 
     # Additional custom settings
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_env(cls) -> EventfulConfig:
@@ -54,21 +54,25 @@ class EventfulConfig:
             Config populated from environment
         """
         config = cls()
+        type_hints = get_type_hints(cls)
 
         # Update from environment variables
-        for field_name in cls.__dataclass_fields__:  # type: ignore
+        for config_field in fields(cls):
+            field_name = config_field.name
             env_var = f"EVENTFUL_{field_name.upper()}"
             if env_var in os.environ:
-                value = os.environ[env_var]
-                field_type = cls.__dataclass_fields__[field_name].type
+                raw_value = os.environ[env_var]
+                field_type = type_hints[field_name]
 
                 # Basic type conversion
                 if field_type is bool:
-                    value = value.lower() in ('true', '1', 'yes')
+                    value: object = raw_value.lower() in ('true', '1', 'yes')
                 elif field_type is int:
-                    value = int(value)
+                    value = int(raw_value)
                 elif field_type is float:
-                    value = float(value)
+                    value = float(raw_value)
+                else:
+                    value = raw_value
 
                 setattr(config, field_name, value)
 
@@ -76,7 +80,7 @@ class EventfulConfig:
 
 
 # Global config instance
-_global_config: Optional[EventfulConfig] = None
+_global_config: EventfulConfig | None = None
 
 
 def get_config() -> EventfulConfig:
