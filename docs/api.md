@@ -250,6 +250,17 @@ cancelling the iterator permanently closes its consumer and Pub/Sub resource.
 `close()` unsubscribes and closes that resource idempotently without closing the
 shared Redis client; cleanup failures raise `TransportError`.
 
+## File persistence (provisional)
+
+**Optional extra:** `eventful[file]` (no third-party dependencies).
+`FilePersistence(path, max_size=10485760, backup_count=5)` stores deterministic
+UTF-8 JSON Lines and provides synchronous `append(event)`,
+`replay(start_id=0, batch=1000)`, and idempotent `close()` operations. Replay
+offsets count physical records, including malformed records. All I/O,
+serialization, and closed-resource failures raise `StoreError`. Access is locked
+between threads in one process but not between processes. See the
+[file persistence guide](file-persistence.md) for wire and rotation semantics.
+
 ## PostgreSQL persistence (provisional)
 
 **Optional extra:** `eventful[postgres]` (`asyncpg>=0.29`). Construction raises

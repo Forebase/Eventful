@@ -99,7 +99,7 @@ jobs:
           PY
               python -m pytest \
                 tests/test_bus.py tests/test_contracts.py tests/test_dispatch.py \
-                tests/test_error.py tests/test_event.py tests/test_extensions.py \
+                tests/test_error.py tests/test_event.py tests/test_extensions.py tests/test_file_persistence.py \
                 tests/test_import_surface.py tests/test_init.py tests/test_router.py
               ;;
             redis)

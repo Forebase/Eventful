@@ -24,7 +24,7 @@ dependencies = []
 [project.optional-dependencies]
 redis = ["redis>=5"]
 postgres = ["asyncpg>=0.29"]
-file = []
+file = []  # Dependency-free UTF-8 JSON Lines persistence backend.
 fastapi = ["fastapi>=0.110"]
 starlette = ["starlette>=0.37"]
 test = ["asyncpg>=0.29", "build>=1.2", "fastapi>=0.110", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "redis>=5", "starlette>=0.37"]
@@ -66,7 +66,6 @@ markers = [
 [[tool.mypy.overrides]]
 module = [
   "eventful.adapters.starlette",
-  "eventful.persistence.file_persistence",
   "eventful.utilities.debounce",
   "eventful.utilities.logging_handler",
   "eventful.utilities.rate_limit",
