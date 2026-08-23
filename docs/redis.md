@@ -30,15 +30,20 @@ acknowledgements, or durable delivery is required.
 
 ## Example
 
+The standalone version, including prerequisites and an environment-variable based
+connection URL, is [`examples/redis_pubsub.py`](examples.md#redis-pubsub).
+The service-backed documentation test runs that file's `main` function directly.
+
 ```python
 import asyncio
+import os
 
 from eventful import Event
 from eventful.transports.redis import RedisTransport
 
 
 async def main() -> None:
-    async with RedisTransport("redis://localhost:6379/0") as transport:
+    async with RedisTransport(os.environ["EVENTFUL_REDIS_URL"]) as transport:
         consumer = transport.consumer("user.created")
         await consumer.subscribe()
 
