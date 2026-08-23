@@ -22,6 +22,7 @@ from .exceptions import AsyncDispatchRequired
 from .listener import Listener, ListenerCallable, ListenerConfig
 from .middleware import MiddlewareChain
 from .router import Router
+from .stop_propagation import StopPropagation
 
 ErrorHandler = Callable[[BaseException, Event, ListenerCallable], None]
 EventInput = Event | dict[str, Any] | Any
@@ -210,6 +211,9 @@ class EventBus:
                     results.append(result)
                 except AsyncDispatchRequired:
                     raise
+                except StopPropagation:
+                    if self.dispatcher.propagation_enabled:
+                        break
                 except Exception as exc:
                     self._handle_error(exc, event, registered.func)
         except Exception as exc:
@@ -252,6 +256,9 @@ class EventBus:
                 try:
                     result = await self.middleware.invoke_async(event, registered.func)
                     results.append(result)
+                except StopPropagation:
+                    if self.dispatcher.propagation_enabled:
+                        break
                 except Exception as exc:
                     self._handle_error(exc, event, registered.func)
         except Exception as exc:
