@@ -8,6 +8,9 @@ from types import SimpleNamespace
 from typing import Any
 
 from fastapi import Depends, FastAPI, Request
+from starlette.applications import Starlette
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import JSONResponse
 
 from eventful import EventBus
 from eventful.adapters.fastapi import event_bus_dependency, install_eventful
@@ -21,10 +24,12 @@ class CloseableBus(EventBus):
         """Create an open local bus."""
         super().__init__()
         self.closed = False
+        self.close_calls = 0
 
     async def close(self) -> None:
         """Mark the test bus closed."""
         self.closed = True
+        self.close_calls += 1
 
 
 async def terminal_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
@@ -139,6 +144,154 @@ def test_lifespan_respects_external_and_explicit_ownership() -> None:
     assert owned.closed is True
 
 
+def test_repeated_lifespan_shutdown_closes_owned_bus_once() -> None:
+    """Make repeated server lifespan cycles safe and cleanup idempotent."""
+    bus = CloseableBus()
+    middleware = EventfulMiddleware(terminal_app, bus_factory=lambda: bus)
+
+    assert asyncio.run(invoke_lifespan(middleware))[-1] == "lifespan.shutdown.complete"
+    assert asyncio.run(invoke_lifespan(middleware))[-1] == "lifespan.shutdown.complete"
+    assert bus.close_calls == 1
+
+
+def test_concurrent_application_instances_have_distinct_owned_buses() -> None:
+    """Never share implicitly created buses between application instances."""
+    first = EventfulMiddleware(terminal_app, bus_factory=CloseableBus)
+    second = EventfulMiddleware(terminal_app, bus_factory=CloseableBus)
+
+    async def exercise() -> None:
+        await asyncio.gather(invoke_lifespan(first), invoke_lifespan(second))
+
+    asyncio.run(exercise())
+    assert first.bus is not second.bus
+    assert first.bus.closed is True
+    assert second.bus.closed is True
+
+
+def test_injected_bus_scope_is_shared_by_caller_choice() -> None:
+    """Attach one caller-owned bus to both apps when it is injected twice."""
+    bus = CloseableBus()
+    first = EventfulMiddleware(terminal_app, bus=bus)
+    second = EventfulMiddleware(terminal_app, bus=bus)
+
+    async def exercise() -> tuple[dict[str, Any], dict[str, Any]]:
+        return await asyncio.gather(invoke_http(first), invoke_http(second))
+
+    first_state, second_state = asyncio.run(exercise())
+    assert first_state["eventful_bus"] is bus
+    assert second_state["eventful_bus"] is bus
+
+
+def test_owned_bus_is_cleaned_up_after_startup_failure() -> None:
+    """Release adapter resources when startup fails or raises."""
+    async def failed_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await receive()
+        await send({"type": "lifespan.startup.failed", "message": "nope"})
+
+    failed_bus = CloseableBus()
+    failed = EventfulMiddleware(failed_app, bus_factory=lambda: failed_bus)
+    assert asyncio.run(invoke_lifespan(failed)) == ["lifespan.startup.failed"]
+    assert failed_bus.close_calls == 1
+
+    async def raising_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await receive()
+        raise RuntimeError("startup exploded")
+
+    raised_bus = CloseableBus()
+    raised = EventfulMiddleware(raising_app, bus_factory=lambda: raised_bus)
+    try:
+        asyncio.run(invoke_lifespan(raised))
+    except RuntimeError as exc:
+        assert str(exc) == "startup exploded"
+    else:
+        raise AssertionError("startup exception should propagate")
+    assert raised_bus.close_calls == 1
+
+
+def test_startup_and_cleanup_failures_are_both_preserved() -> None:
+    """Report cleanup failure without replacing the startup root cause."""
+    class FailingCloseBus(EventBus):
+        async def close(self) -> None:
+            raise OSError("cleanup exploded")
+
+    async def raising_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await receive()
+        raise RuntimeError("startup exploded")
+
+    middleware = EventfulMiddleware(raising_app, bus_factory=FailingCloseBus)
+    try:
+        asyncio.run(invoke_lifespan(middleware))
+    except BaseExceptionGroup as exc:
+        assert [str(error) for error in exc.exceptions] == [
+            "startup exploded",
+            "cleanup exploded",
+        ]
+        assert isinstance(exc.exceptions[0], RuntimeError)
+        assert isinstance(exc.exceptions[1], OSError)
+    else:
+        raise AssertionError("both lifespan failures should propagate")
+
+
+def test_startup_failure_preserves_application_owned_bus() -> None:
+    """Do not clean up an injected bus merely because application startup fails."""
+    async def failed_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await receive()
+        await send({"type": "lifespan.startup.failed"})
+
+    bus = CloseableBus()
+    middleware = EventfulMiddleware(failed_app, bus=bus)
+    asyncio.run(invoke_lifespan(middleware))
+    assert bus.close_calls == 0
+
+
+def test_owned_bus_is_cleaned_up_after_shutdown_failure() -> None:
+    """Treat a failed shutdown message as a terminal lifespan outcome."""
+    async def failed_shutdown(
+        scope: dict[str, Any], receive: Any, send: Any
+    ) -> None:
+        await receive()
+        await send({"type": "lifespan.startup.complete"})
+        await receive()
+        await send({"type": "lifespan.shutdown.failed", "message": "nope"})
+
+    bus = CloseableBus()
+    middleware = EventfulMiddleware(failed_shutdown, bus_factory=lambda: bus)
+    assert asyncio.run(invoke_lifespan(middleware)) == [
+        "lifespan.startup.complete",
+        "lifespan.shutdown.failed",
+    ]
+    assert bus.close_calls == 1
+
+
+def test_concurrent_close_waits_for_cleanup() -> None:
+    """Do not let a second close return while the first cleanup is in progress."""
+    class BlockingCloseBus(EventBus):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+            self.close_calls = 0
+
+        async def close(self) -> None:
+            self.close_calls += 1
+            self.started.set()
+            await self.release.wait()
+
+    async def exercise() -> None:
+        bus = BlockingCloseBus()
+        middleware = EventfulMiddleware(terminal_app, bus_factory=lambda: bus)
+        first = asyncio.create_task(middleware.close())
+        await bus.started.wait()
+        second = asyncio.create_task(middleware.close())
+        await asyncio.sleep(0)
+        assert second.done() is False
+        bus.release.set()
+        await asyncio.gather(first, second)
+        assert bus.close_calls == 1
+
+    asyncio.run(exercise())
+
+
 def test_fastapi_installs_middleware_and_dependency_uses_request_state() -> None:
     """Use FastAPI's middleware registry and Request annotation contract."""
     app = FastAPI()
@@ -154,6 +307,19 @@ def test_fastapi_installs_middleware_and_dependency_uses_request_state() -> None
     assert app.user_middleware[0].cls is EventfulMiddleware
     assert dependency(request) is bus
     assert dependency.__annotations__["request"] is Request
+    assert asyncio.run(invoke_fastapi(app, "/bus")) == (200, {"same": True})
+
+
+def test_supported_starlette_application_uses_request_state() -> None:
+    """Exercise the public middleware API on the supported Starlette release."""
+    app = Starlette()
+    bus = CloseableBus()
+    app.add_middleware(EventfulMiddleware, bus=bus)
+
+    async def endpoint(request: StarletteRequest) -> JSONResponse:
+        return JSONResponse({"same": request_event_bus(request) is bus})
+
+    app.add_route("/bus", endpoint)
     assert asyncio.run(invoke_fastapi(app, "/bus")) == (200, {"same": True})
 
 

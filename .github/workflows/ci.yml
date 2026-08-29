@@ -1,9 +1,17 @@
 name: CI
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         python-version: ['3.13', '3.14']
@@ -16,6 +24,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,10 +39,34 @@ jobs:
             dist/*.tar.gz
           if-no-files-found: error
 
+  framework-compatibility:
+    name: Frameworks ${{ matrix.frameworks }} / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13', '3.14']
+        frameworks: [minimum, current]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '${{ matrix.python-version }}'}
+      - name: Install adapter test dependencies
+        shell: bash
+        run: |
+          python -m pip install -e . pytest pytest-asyncio
+          if [ '${{ matrix.frameworks }}' = minimum ]; then
+            python -m pip install 'fastapi>=0.110,<0.111' 'starlette>=0.37,<0.38'
+          else
+            python -m pip install 'fastapi>=0.110' 'starlette>=0.37'
+          fi
+      - run: python -m pytest tests/test_adapters.py
+
   installation:
     name: Python ${{ matrix.python-version }} / ${{ matrix.installation }}
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       redis:
         image: redis:7-alpine

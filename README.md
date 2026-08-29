@@ -1,6 +1,6 @@
 # Eventful
 
-Eventful 0.2.0 is a pre-alpha foundation for a Python event toolkit. The implemented public facade is a local in-memory dispatcher (`Event`, `EventBus`, `InMemoryBus`, `listener`, `emit_sync`, `emit_async`, and the compatibility helper `emit`). v1-oriented packages provide provisional contracts for brokers, durable streams, codecs, stores, middleware, plugins, configuration, schemas, and observability.
+Eventful 0.3.0 is a typed event toolkit for Python 3.13 and 3.14. Its supported core is the local dispatcher (`Event`, `EventBus`, `InMemoryBus`, `listener`, `emit_sync`, `emit_async`, and the compatibility helper `emit`), with tested Redis, PostgreSQL, file-persistence, FastAPI, and Starlette integrations.
 
 ## Install
 
@@ -35,7 +35,7 @@ assert bus.emit_sync(Event(type="user.created", payload="Ada")) == ["hello Ada"]
 
 ## API status
 
-No API is stable before 1.0. The root facade is preserved for 0.1 compatibility and treated as provisional. Experimental packages are importable for architecture work but should not be treated as production integrations.
+No API is frozen before 1.0. The root facade remains backward compatible within the documented deprecation policy. Production use must be limited to the guarantees and deployment models in [`docs/production-readiness.md`](docs/production-readiness.md).
 
 See `docs/index.md` for the documentation map and `docs/work-register.md` for deferred work.
 

@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "eventful"
 dynamic = ["version"]
-description = "Provisional event dispatch contracts and local in-memory event bus for Python applications"
+description = "Typed event dispatch, transport, and persistence building blocks for Python applications"
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
 license = "MIT"
 authors = [{name = "Eventful maintainers", email = "team@eventful.org"}]
 keywords = ["events", "pubsub", "event-bus", "dispatch"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
@@ -21,12 +21,18 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/Forebase/Eventful"
+Documentation = "https://github.com/Forebase/Eventful/tree/main/docs"
+Issues = "https://github.com/Forebase/Eventful/issues"
+Changelog = "https://github.com/Forebase/Eventful/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
-redis = ["redis>=5"]
-postgres = ["asyncpg>=0.29"]
+redis = ["redis>=5,<7"]
+postgres = ["asyncpg>=0.29,<1"]
 file = []  # Dependency-free UTF-8 JSON Lines persistence backend.
-fastapi = ["fastapi>=0.110"]
-starlette = ["starlette>=0.37"]
+fastapi = ["fastapi>=0.110,<1"]
+starlette = ["starlette>=0.37,<1"]
 test = ["asyncpg>=0.29", "build>=1.2", "fastapi>=0.110", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "redis>=5", "starlette>=0.37"]
 docs = ["mkdocs>=1.6"]
 dev = ["asyncpg>=0.29", "build>=1.2", "fastapi>=0.110", "mkdocs>=1.6", "mypy>=1.10", "pre-commit>=3.7", "pytest>=8.2", "pytest-asyncio>=0.23", "pytest-cov>=5", "redis>=5", "ruff>=0.5", "starlette>=0.37"]
