@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.2.0 - unreleased
+## 0.3.0 - unreleased
+
+- Added deterministic ASGI ownership and shutdown behavior, including failed startup.
+- Added release gates for supported Python versions, built distributions, optional
+  integrations, dependency vulnerabilities, and static security analysis.
+- Added a tag-only trusted-publishing workflow with artifact attestations.
+- Bounded optional dependency compatibility ranges and documented production
+  guarantees, limitations, support policy, and operator responsibilities.
+
+## 0.2.0 - 2026-08-23
 
 - Repaired package imports and packaging metadata.
 - Established provisional v1 topology and contracts.

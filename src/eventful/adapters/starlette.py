@@ -50,7 +50,7 @@ class EventfulMiddleware:
         self._close_lock = asyncio.Lock()
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
-        """Attach state and wait for application shutdown before closing resources."""
+        """Attach state and close owned resources when a lifespan terminates."""
         if scope["type"] in {"http", "websocket"}:
             scope.setdefault("state", {})[self.state_key] = self.bus
 
@@ -59,12 +59,28 @@ class EventfulMiddleware:
             return
 
         async def lifespan_send(message: dict[str, Any]) -> None:
-            """Close owned resources before reporting successful shutdown."""
-            if message["type"] == "lifespan.shutdown.complete":
+            """Close resources before reporting shutdown or failed startup."""
+            if message["type"] in {
+                "lifespan.startup.failed",
+                "lifespan.shutdown.complete",
+                "lifespan.shutdown.failed",
+            }:
                 await self.close()
             await send(message)
 
-        await self.app(scope, receive, lifespan_send)
+        try:
+            await self.app(scope, receive, lifespan_send)
+        except BaseException as application_error:
+            # A lifespan exception may prevent the application from sending either
+            # terminal message. Do not strand a bus that this adapter created.
+            try:
+                await self.close()
+            except BaseException as cleanup_error:
+                raise BaseExceptionGroup(
+                    "lifespan application and Eventful cleanup failed",
+                    [application_error, cleanup_error],
+                ) from None
+            raise
 
     async def close(self) -> None:
         """Close an owned/opted-in bus once when it exposes `close()`."""
@@ -72,14 +88,16 @@ class EventfulMiddleware:
             if self._closed:
                 return
             self._closed = True
-        if not self.close_on_shutdown:
-            return
-        close = getattr(self.bus, "close", None)
-        if close is None:
-            return
-        result = close()
-        if inspect.isawaitable(result):
-            await result
+            if not self.close_on_shutdown:
+                return
+            close = getattr(self.bus, "close", None)
+            if close is None:
+                return
+            result = close()
+            if inspect.isawaitable(result):
+                # Keep the lock until cleanup finishes so a concurrent terminal
+                # lifespan message cannot be forwarded ahead of resource cleanup.
+                await result
 
 
 def request_event_bus(
