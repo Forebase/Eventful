@@ -33,9 +33,9 @@ postgres = ["asyncpg>=0.31.0,<1"]
 file = []  # Dependency-free UTF-8 JSON Lines persistence backend.
 fastapi = ["fastapi>=0.141.1,<1"]
 starlette = ["starlette>=1.6.0,<2"]
-test = ["asyncpg>=0.31.0", "build>=1.6.0", "fastapi>=0.141.1", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "starlette>=1.6.0"]
+test = ["asyncpg>=0.31.0", "build>=1.6.1", "fastapi>=0.141.1", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "starlette>=1.6.0"]
 docs = ["mkdocs>=1.6.1"]
-dev = ["asyncpg>=0.31.0", "build>=1.6.0", "fastapi>=0.141.1", "mkdocs>=1.6.1", "mypy>=2.3.1", "pre-commit>=4.6.2", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "ruff>=0.16.6", "starlette>=1.6.0"]
+dev = ["asyncpg>=0.31.0", "build>=1.6.1", "fastapi>=0.141.1", "mkdocs>=1.6.1", "mypy>=2.3.1", "pre-commit>=4.6.2", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "ruff>=0.16.8", "starlette>=1.6.0"]
 all = ["asyncpg>=0.31.0", "fastapi>=0.141.1", "redis>=8.1.0", "starlette>=1.6.0"]
 
 [tool.setuptools.dynamic]
