@@ -29,14 +29,14 @@ Changelog = "https://github.com/Forebase/Eventful/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 redis = ["redis>=8.1.0,<9"]
-postgres = ["asyncpg>=0.31.0,<1"]
+postgres = ["asyncpg>=0.32.0,<1"]
 file = []  # Dependency-free UTF-8 JSON Lines persistence backend.
-fastapi = ["fastapi>=0.141.1,<1"]
-starlette = ["starlette>=1.6.0,<2"]
-test = ["asyncpg>=0.31.0", "build>=1.6.0", "fastapi>=0.141.1", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "starlette>=1.6.0"]
+fastapi = ["fastapi>=0.142.4,<1"]
+starlette = ["starlette>=1.7.0,<2"]
+test = ["asyncpg>=0.32.0", "build>=1.6.1", "fastapi>=0.142.4", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "starlette>=1.7.0"]
 docs = ["mkdocs>=1.6.1"]
-dev = ["asyncpg>=0.31.0", "build>=1.6.0", "fastapi>=0.141.1", "mkdocs>=1.6.1", "mypy>=2.3.1", "pre-commit>=4.6.2", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "ruff>=0.16.6", "starlette>=1.6.0"]
-all = ["asyncpg>=0.31.0", "fastapi>=0.141.1", "redis>=8.1.0", "starlette>=1.6.0"]
+dev = ["asyncpg>=0.32.0", "build>=1.6.1", "fastapi>=0.142.4", "mkdocs>=1.6.1", "mypy>=2.4.0", "pre-commit>=4.6.2", "pytest>=9.1.1", "pytest-asyncio>=1.4.0", "pytest-cov>=7.1.0", "redis>=8.1.0", "ruff>=0.16.10", "starlette>=1.7.0"]
+all = ["asyncpg>=0.32.0", "fastapi>=0.142.4", "redis>=8.1.0", "starlette>=1.7.0"]
 
 [tool.setuptools.dynamic]
 version = {attr = "eventful.__version__.__version__"}
